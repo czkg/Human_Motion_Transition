@@ -1,0 +1,8 @@
+dataset/*
+libs/*
+papers/*
+trunk/*
+.cproject
+.project
+**/.DS_Store
+*.pyc
