@@ -4,16 +4,11 @@ from models import networks
 from numpy import genfromtxt
 from utils.calculate_3Dheatmap import calculate_3Dheatmap
 
-
-DATA_EXTENSIONS = ['mat', 'csv', 'json', 'hdf5']
-subs = ['S1', 'S5', 'S6', 'S7', 'S8', 'S9', 'S11']
-acts = ['Direction', 'Directions 1', 'Discussion', 'Discusion 1', 'Eating', 'Eating 2', 'Greeting',
-		   'Greating 1', 'Phoning', 'Phoning 1', 'Photo', 'Photo 1', 'Posing', 'Posing 1', 'Purchases',
-		   'Purchases 1', 'Sitting 1', 'Sitting 2', 'SittingDown', 'SittingDown 2', 'Smoking', 'Smoking 1',
-		   'Waiting', 'Waiting 1', 'WalkDog', 'WalkDog 1', 'Walking', 'Walking 1', 'WalkTogether', 'WalkTogether 1']
+# !TO DO!add modes later
+mode = []
 
 
-class SinglePathDataset(BaseDataset):
+class AlignedPathDataset(BaseDataset):
 	""" This dataset class can load a set of paths(data) specified by the file path --dataroot/path/to/data
 	"""
 
@@ -38,7 +33,10 @@ class SinglePathDataset(BaseDataset):
 		count = 0
 		with open(self.path) as f:
 			rawdata = json.load(f)
+		subs = list(rawdata.keys())
+
 		for s in subs:
+			acts = list(rawdata[s].keys())
 			for a in acts:
 				number = len(rawdata[s][a])
 				for i in range(number):
@@ -62,8 +60,8 @@ class SinglePathDataset(BaseDataset):
 
 		this_path_data = self.data[index]
 		this_path_folder = self.metadata[index]
-		A = path2data(this_path_data, this_path_folder)
-		return {'A': A}
+		A, B = path2data(this_path_data, this_path_folder)
+		return {'A': A, 'B': B}
 
 	def __len__(self):
 		""" Return the total number of paths in the dataset
@@ -74,31 +72,15 @@ class SinglePathDataset(BaseDataset):
 	def path2data(self, path_data, path_folder):
 		path_len = len(path_data)
 
-		data = []
+		B = []
+		A = []
 		#loop through every point in the path
 		for i in range(path_len):
 			current_path = self.datapath + '/' + path_folder + '/' + str(path_data[i]) + '.csv'
 			pts = genfromtxt(current_path, delimiter = ' ')
 			heatmap = calculate_3Dheatmap(pts, self.dim_heatmap, self.sigma)
 			_, z = self.vae(heatmap)
-			data.append(z)
-		return np.ravel(data)
-
-
-	def load_path_data(file_path):
-	ext = file_path[-3:]
-	assert ext in DATA_EXTENSIONS, '%s format is not supported' % ext
-
-	if ext == 'hdf5':
-		with h5py.File(file_path) as f:
-			data = f['data'].value
-	elif ext == 'mat':
-		data = scipy.io.loadmat(file_path)
-	# we are now using json
-	elif ext == 'json':
-		with open(file_path) as f:
-			data = json.load(f)['data']
-	elif ext == 'csv':
-		data = genfromtxt(file_path, delimiter=' ')
-
-	return data
+			B.append(z)
+		A = B
+		A[1:-1] = 0.0
+		return np.ravel(A), np.ravel(B)
