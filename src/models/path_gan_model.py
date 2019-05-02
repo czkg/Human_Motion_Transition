@@ -1,5 +1,5 @@
 import torch
-import BaseModel
+from .base_model import BaseModel
 from . import networks
 
 
@@ -38,7 +38,7 @@ class PathGANModel(BaseModel):
 
 
     def __init__(self, opt):
-    	""" Initialize the pix2pix class.
+    	""" Initialize the pathGan class.
 
     	Parameters:
     		opt (Option class)-- stores all the experiment flags, needs to be a subclass of BaseOptions
@@ -86,7 +86,6 @@ class PathGANModel(BaseModel):
         AtoB = self.opt.direction == 'AtoB'
         self.real_A = input['A' if AtoB else 'B'].to(self.device)
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
-        self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
 
     def forward(self):

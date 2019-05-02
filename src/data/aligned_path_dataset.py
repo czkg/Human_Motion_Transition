@@ -1,5 +1,4 @@
 from data.base_dataset import BaseDataset
-from data.helper import make_dataset
 from models import networks
 from numpy import genfromtxt
 from utils.calculate_3Dheatmap import calculate_3Dheatmap
@@ -24,14 +23,14 @@ class AlignedPathDataset(BaseDataset):
 
 		self.with_vae = opt.with_vae
 		if self.with_vae:
-			self.vae = network.VAEModel(opt.dim_heatmap, opt.z_dim, opt.pca_dim)
+			self.vae = network.VAE(opt.dim_heatmap, opt.z_dim, opt.pca_dim)
 			self.vae.load_state_dict(torch.load(opt.vae_path))
-		self.path = opt.datapath
+		path = opt.datapath      #path to the json file
 
 		self.data = []
 		self.metadata = []
 		count = 0
-		with open(self.path) as f:
+		with open(path) as f:
 			rawdata = json.load(f)
 		subs = list(rawdata.keys())
 
@@ -53,9 +52,9 @@ class AlignedPathDataset(BaseDataset):
 		Parameters:
 			index -- a random integer for data indexing
 
-		Returns a dictionary that contains A and A_paths
-			A(tensor) -- a path in one domin
-			A_paths(str) -- the path of the data(path)
+		Returns a dictionary that contains A and BSSSS
+			A(tensor) -- input path (a vector of key poses)
+			B(tensor) -- groundtruth path (a vector of poses)
 		"""
 
 		this_path_data = self.data[index]
@@ -76,7 +75,7 @@ class AlignedPathDataset(BaseDataset):
 		A = []
 		#loop through every point in the path
 		for i in range(path_len):
-			current_path = self.datapath + '/' + path_folder + '/' + str(path_data[i]) + '.csv'
+			current_path = self.root + '/' + path_folder + '/' + str(path_data[i]) + '.csv'   #dataroot: path to csv files
 			pts = genfromtxt(current_path, delimiter = ' ')
 			heatmap = calculate_3Dheatmap(pts, self.dim_heatmap, self.sigma)
 			_, z = self.vae(heatmap)

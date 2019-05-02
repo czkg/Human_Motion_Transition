@@ -249,7 +249,7 @@ class D_NLayers(nn.Module):
 ##############################################################################
 # Classes
 ##############################################################################
-class VAEModel(nn.Module):
+class VAE(nn.Module):
     """ This class implements the VAE model, 
         for encoding the observation data into latent space 
         and recover the original data from it.
@@ -261,7 +261,7 @@ class VAEModel(nn.Module):
         Parameters:
             opt (Option class) -- stores all the experiment flags, needs to be a subclass of BaseOptions
         """
-        super(VAEModel, self).__init__()
+        super(VAE, self).__init__()
         self.x_dim = dim_heatmap ** 3 * 17     # 17 joints
         self.z_dim = z_dim
         self.pca_dim =pca_dim
@@ -302,8 +302,24 @@ class VAEModel(nn.Module):
 
     def forward(self, x):
         mu, logvar = self.encoder(x)
-        z = self.reparameterize(mu, logvar)
-        return self.decoder(z), z
+        #z = self.reparameterize(mu, logvar)
+        return self.decoder(z), mu, logvar
+
+
+class VAELoss(nn.Module):
+    def __init__(self):
+        super(VAELoss, self).__init__()
+
+    def __call__(self, mu, logvar, inputs, outputs):
+        kl_loss = 1 + logvar - mu ** 2 - torch.exp(logvar)
+        kl_loss = torch.sum(kl_loss, dim = -1)
+        kl_loss *= -0.5
+
+        recons_loss = F.mes_loss(inputs, outputs)
+        recons_loss *= 0.5
+
+        loss = torch.mean(recons_loss + kl_loss)
+        return loss
 
 
 class RecLoss(nn.Module):
