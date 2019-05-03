@@ -65,7 +65,7 @@ class AlignedPathDataset(BaseDataset):
 	def __len__(self):
 		""" Return the total number of paths in the dataset
 		"""
-		return len(self.A_paths)
+		return len(self.data)
 
 
 	def path2data(self, path_data, path_folder):

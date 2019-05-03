@@ -5,21 +5,18 @@ from . import networks
 
 
 class BaseModel(ABC):
-	""" This class is an abstract base class (ABC) for models.
-	To create a subclass, you need to implement the following five functions:
+    """ This class is an abstract base class (ABC) for models.
+    To create a subclass, you need to implement the following five functions:
         -- <__init__>:                      initialize the class; first call BaseModel.__init__(self, opt).
         -- <set_input>:                     unpack data from dataset and apply preprocessing.
         -- <forward>:                       produce intermediate results.
         -- <optimize_parameters>:           calculate losses, gradients, and update network weights.
         -- <modify_commandline_options>:    (optionally) add model-specific options and set default options.
-	"""
-
-	def __init__(self, opt):
-		"""Initialize the BaseModel class.
-
+    """
+    def __init__(self, opt):
+        """Initialize the BaseModel class.
         Parameters:
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
-
         When creating your custom class, you need to implement your own initialization.
         In this fucntion, you should first call  `BaseModel.__init__(self, opt)`
         Then, you need to define four lists:
@@ -33,13 +30,12 @@ class BaseModel(ABC):
         self.isTrain = opt.isTrain
         self.device = torch.device('cuda:{}'.format(self.gpu_ids[0])) if self.gpu_ids else torch.device('cpu')  # get device name: CPU or GPU
         self.save_dir = os.path.join(opt.checkpoints_dir, opt.name)  # save all the checkpoints to save_dir
-        if opt.preprocess != 'scale_width':  # with [scale_width], input images might have different sizes, which hurts the performance of cudnn.benchmark.
-            torch.backends.cudnn.benchmark = True
+        # if opt.preprocess != 'scale_width':  # with [scale_width], input images might have different sizes, which hurts the performance of cudnn.benchmark.
+        #     torch.backends.cudnn.benchmark = True
         self.loss_names = []
         self.model_names = []
         self.visual_names = []
         self.optimizers = []
-        self.image_paths = []
 
     @staticmethod
     def modify_commandline_options(parser, is_train):

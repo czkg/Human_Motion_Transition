@@ -16,11 +16,19 @@ class PoseDataset(BaseDataset):
 		"""
 
 		BaseDataset.__init__(self, opt)
-		self.dict = {}
+		self.paths = []
 		subs = os.listdir(self.root)
 		for s in subs:
-			acts = os.listdir(self.root + '/' + s)
-			self.dict[s] = acts
+			acts = os.listdir(os.path.join(self.root, s))
+			for a in acts:
+				basepath = os.path.join(self.root, s, a)
+				filenames = os.listdir(basepath)
+				for f in filenames:
+					path = os.path.join(basepath, f)
+					self.paths.append(path)
+
+		self.dim_heatmap = opt.dim_heatmap
+		self.sigma = opt.sigma
 
 
 
@@ -32,5 +40,12 @@ class PoseDataset(BaseDataset):
 
 		Returns a dictionary that contains data and path
 		"""
-		current_path = 
+		current_path = self.paths[index]
+		pts = genfromtxt(current_path, delimiter = ' ')
+		heatmap = calculate_3Dheatmap(pts, self.dim_heatmap, self.sigma)
+
+		return {'heatmap': heatmap}
+
+	def __len__(self):
+		return len(self.paths)
 		

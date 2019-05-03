@@ -35,7 +35,7 @@ class VAEModel(BaseModel):
 		Parameters:
 			input (dict): include the data itself and its metadata information.
 		"""
-		self.input = input['heatmaps'].to(self.device)
+		self.input = input['heatmap'].to(self.device)
 
 
 	def forward(self):

@@ -2,6 +2,7 @@ dataset/*
 libs/*
 papers/*
 trunk/*
+results/*
 .cproject
 .project
 **/.DS_Store
