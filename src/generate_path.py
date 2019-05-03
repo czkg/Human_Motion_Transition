@@ -4,7 +4,7 @@ from shutil import rmtree
 from glob import glob
 import json
 
-# the length of the path is set to 20
+# the length of the path is set to 15
 length = 15
 step = 5
 num_act = 30

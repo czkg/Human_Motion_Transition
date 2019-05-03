@@ -1,7 +1,15 @@
 import os
+import sys
 import torch
-from abc import ABC, abstractmethod
+#from abc import ABC, abstractmethod
+from abc import abstractmethod
+import abc
 from . import networks
+
+if sys.version_info >= (3, 4):
+    ABC = abc.ABC
+else:
+    ABC = abc.ABCMeta('ABC', (), {})
 
 
 class BaseModel(ABC):

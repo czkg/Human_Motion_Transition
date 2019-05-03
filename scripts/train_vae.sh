@@ -1,7 +1,7 @@
 set -ex
 GPU_ID=0
 # command
-CUDA_VISIBLE_DEVICES=${GPU_ID} python ../src/train.py \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--dataroot ../dataset/Human3.6m/3d_poses \
 	--dataset_mode pose \
 	--name vae \

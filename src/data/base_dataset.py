@@ -2,10 +2,17 @@
 
 It also includes common transformation functions (e.g., get_transform, __scale_width), which can be later used in subclasses.
 """
+import sys
 import random
 import numpy as np
 import torch.utils.data as data
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+import abc
+
+if sys.version_info >= (3, 4):
+    ABC = abc.ABC
+else:
+    ABC = abc.ABCMeta('ABC', (), {})
 
 
 class BaseDataset(data.Dataset, ABC):
