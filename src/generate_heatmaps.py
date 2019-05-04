@@ -2,6 +2,7 @@ import os
 import numpy as np
 from shutil import rmtree
 import scipy.io
+from glob import glob
 from utils.calculate_3Dheatmap import calculate_3Dheatmap
 
 
@@ -25,9 +26,9 @@ if __name__ == '__main__':
 		print('generating', s + ':')
 		acts = os.listdir(os.path.join(input_path, s))
 		for act in acts:
-			print('generating', s + '-' + action)
+			print('generating', s + '-' + act)
 			os.makedirs(os.path.join(output_path, s, act))
-			file_list = os.listdir(os.path.join(output_path, s, act))
+			file_list = glob(os.path.join(input_path, s, act) + '/*.csv')
 			for f in file_list:
 				filename = f.split('/')[-1][:-4]
 				pts = np.genfromtxt(f, delimiter = ' ')
