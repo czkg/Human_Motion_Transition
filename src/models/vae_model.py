@@ -27,7 +27,7 @@ class VAEModel(BaseModel):
 		self.model_names = ['VAE']
 		x_dim = opt.dim_heatmap ** 2 * num_joints + opt.dim_heatmap * num_joints
 		self.netVAE = networks.VAE(x_dim, opt.z_dim, opt.pca_dim)
-		self.netVAE = networks.init_net(self.netVAE, gpu_ids = opt.gpu_ids)
+		self.netVAE = networks.init_net(self.netVAE, init_type = opt.init_type, init_gain = opt.init_gain, gpu_ids = opt.gpu_ids)
 		if self.isTrain:
 			#define loss functions
 			self.criterionVAE = networks.VAELoss().to(self.device)
