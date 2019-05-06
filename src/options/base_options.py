@@ -16,9 +16,9 @@ class BaseOptions():
         It also implements several helper functions such as parsing, printing, and saving the options.
         It also gathers additional options defined in <modify_commandline_options> functions in both dataset class and model class.
         """
-        parser.add_argument('--dataroot', required=True, help='path to data (should have subfolders trainA, trainB, valA, valB, etc)')
+        parser.add_argument('--dataroot', required=True, help='path to data')
         parser.add_argument('--datapath', required=False, help='path to json file')
-        parser.add_argument('--batch_size', type=int, default=2, help='input batch size')
+        parser.add_argument('--batch_size', type=int, default=32, help='input batch size')
         #parser.add_argument('--load_size', type=int, default=286, help='scale images to this size')
         parser.add_argument('--input_size', type=int, default=3, help='size of input data')
         parser.add_argument('--output_size', type=int, default=3, help='size of output data')

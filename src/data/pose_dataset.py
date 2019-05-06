@@ -1,7 +1,8 @@
 import os
 from data.base_dataset import BaseDataset
 from utils.calculate_3Dheatmap import calculate_3Dheatmap
-from numpy import genfromtxt
+import scipy.io
+import torch
 
 
 class PoseDataset(BaseDataset):
@@ -27,10 +28,6 @@ class PoseDataset(BaseDataset):
 					path = os.path.join(basepath, f)
 					self.paths.append(path)
 
-		self.dim_heatmap = opt.dim_heatmap
-		self.sigma = opt.sigma
-
-
 
 	def __getitem__(self, index):
 		""" Return a data point and its metadata information
@@ -41,10 +38,9 @@ class PoseDataset(BaseDataset):
 		Returns a dictionary that contains data and path
 		"""
 		current_path = self.paths[index]
-		pts = genfromtxt(current_path, delimiter = ' ')
-		heatmap = calculate_3Dheatmap(pts, self.dim_heatmap, self.sigma)
+		heatmap = scipy.io.loadmat(current_path)['heatmap'][0]
 
-		return {'heatmap': heatmap}
+		return torch.tensor(heatmap)
 
 	def __len__(self):
 		return len(self.paths)

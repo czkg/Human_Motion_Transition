@@ -2,7 +2,7 @@ set -ex
 GPU_ID=0
 # command
 CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
-	--dataroot ../dataset/Human3.6m/3d_poses \
+	--dataroot ../dataset/Human3.6m/heatmaps \
 	--dataset_mode pose \
 	--name vae \
 	--model vae \
@@ -11,7 +11,8 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--niter_decay 30 \
 	--dim_heatmap 64 \
 	--sigma 0.2 \
-	--z_dim 4096 \
-	--pca_dim 32768 \
+	--z_dim 512 \
+	--pca_dim 2048 \
 	--lr 0.0003 \
-	--beta1 0.5
+	--beta1 0.5 \
+	--no_html

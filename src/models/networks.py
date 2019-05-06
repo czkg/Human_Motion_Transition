@@ -10,7 +10,7 @@ from torch.optim import lr_scheduler
 ###############################################################################
 
 
-def init_weights(net, init_type='normal', init_gain=0.02):
+def init_weights(net, init_type='normal', init_gain=1.):
     """Initialize network weights.
     Parameters:
         net (network)   -- network to be initialized
@@ -42,7 +42,7 @@ def init_weights(net, init_type='normal', init_gain=0.02):
     net.apply(init_func)  # apply the initialization function <init_func>
 
 
-def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
+def init_net(net, init_type='normal', init_gain=1., gpu_ids=[]):
     """Initialize a network: 1. register CPU/GPU device (with multi-GPU support); 2. initialize the network weights
     Parameters:
         net (network)      -- the network to be initialized
@@ -255,14 +255,14 @@ class VAE(nn.Module):
         and recover the original data from it.
     """
 
-    def __init__(self, dim_heatmap, z_dim, pca_dim):
+    def __init__(self, x_dim, z_dim, pca_dim):
         """ Initialize the VAE class
 
         Parameters:
             opt (Option class) -- stores all the experiment flags, needs to be a subclass of BaseOptions
         """
         super(VAE, self).__init__()
-        self.x_dim = dim_heatmap ** 3 * 17     # 17 joints
+        self.x_dim = x_dim
         self.z_dim = z_dim
         self.pca_dim =pca_dim
 
@@ -272,8 +272,8 @@ class VAE(nn.Module):
         self.fc21 = nn.Linear(self.pca_dim, self.z_dim)
         self.fc22 = nn.Linear(self.pca_dim, self.z_dim)
         # decoder
-        self.fc3 = nn.Linear(z_dim, pca_dim)
-        self.fc4 = nn.Linear(pca_dim, x_dim)
+        self.fc3 = nn.Linear(self.z_dim, self.pca_dim)
+        self.fc4 = nn.Linear(self.pca_dim, self.x_dim)
 
 
     def gen_pca(self, x):
@@ -284,10 +284,10 @@ class VAE(nn.Module):
 
     def encoder(self, x):
         #build encoder model
-        h1 = F.leaky_relu(x)
+        h1 = F.leaky_relu(self.fc1(x))
         mu = self.fc21(h1)
         logvar = self.fc22(h1)
-        return mu, logvar, self.reparameterize(mu, logvar)
+        return mu, logvar
 
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
@@ -302,7 +302,7 @@ class VAE(nn.Module):
 
     def forward(self, x):
         mu, logvar = self.encoder(x)
-        #z = self.reparameterize(mu, logvar)
+        z = self.reparameterize(mu, logvar)
         return self.decoder(z), mu, logvar
 
 
@@ -315,7 +315,7 @@ class VAELoss(nn.Module):
         kl_loss = torch.sum(kl_loss, dim = -1)
         kl_loss *= -0.5
 
-        recons_loss = F.mes_loss(inputs, outputs)
+        recons_loss = F.mse_loss(inputs, outputs)
         recons_loss *= 0.5
 
         loss = torch.mean(recons_loss + kl_loss)

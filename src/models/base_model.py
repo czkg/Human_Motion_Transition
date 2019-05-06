@@ -4,6 +4,7 @@ import torch
 #from abc import ABC, abstractmethod
 from abc import abstractmethod
 import abc
+from collections import OrderedDict
 from . import networks
 
 if sys.version_info >= (3, 4):
@@ -40,6 +41,13 @@ class BaseModel(ABC):
         self.save_dir = os.path.join(opt.checkpoints_dir, opt.name)  # save all the checkpoints to save_dir
         # if opt.preprocess != 'scale_width':  # with [scale_width], input images might have different sizes, which hurts the performance of cudnn.benchmark.
         #     torch.backends.cudnn.benchmark = True
+        if not os.path.exists(self.save_dir):
+            if os.path.exists(opt.checkpoints_dir):
+                os.makedirs(self.save_dir)
+            else:
+                os.makedirs(opt.checkpoints_dir)
+                os.makedirs(self.save_dir)
+
         self.loss_names = []
         self.model_names = []
         self.visual_names = []
@@ -114,9 +122,9 @@ class BaseModel(ABC):
         """Calculate additional output images for visdom and HTML visualization"""
         pass
 
-    def get_image_paths(self):
-        """ Return image paths that are used to load current data"""
-        return self.image_paths
+    # def get_image_paths(self):
+    #     """ Return image paths that are used to load current data"""
+    #     return self.image_paths
 
     def update_learning_rate(self):
         """Update learning rates for all the networks; called at the end of every epoch"""
@@ -125,13 +133,13 @@ class BaseModel(ABC):
         lr = self.optimizers[0].param_groups[0]['lr']
         print('learning rate = %.7f' % lr)
 
-    def get_current_visuals(self):
-        """Return visualization images. train.py will display these images with visdom, and save the images to a HTML"""
-        visual_ret = OrderedDict()
-        for name in self.visual_names:
-            if isinstance(name, str):
-                visual_ret[name] = getattr(self, name)
-        return visual_ret
+    # def get_current_visuals(self):
+    #     """Return visualization images. train.py will display these images with visdom, and save the images to a HTML"""
+    #     visual_ret = OrderedDict()
+    #     for name in self.visual_names:
+    #         if isinstance(name, str):
+    #             visual_ret[name] = getattr(self, name)
+    #     return visual_ret
 
     def get_current_losses(self):
         """Return traning losses / errors. train.py will print out these errors on console, and save them to a file"""

@@ -2,6 +2,8 @@ import torch
 from .base_model import BaseModel
 from . import networks
 
+num_joints = 17
+
 
 class VAEModel(BaseModel):
 	""" This class implements the VAE model.
@@ -21,12 +23,16 @@ class VAEModel(BaseModel):
 			opt (Option class)-- stores all the experiment flags, needs to be a subclass of BaseOptions
 		"""
 		BaseModel.__init__(self, opt)
-		self.vae = networks.VAE(opt.dim_heatmap, opt.z_dim, opt.pca_dim).to(self.device)
+		self.loss_names = ['VAE']
+		self.model_names = ['VAE']
+		x_dim = opt.dim_heatmap ** 2 * num_joints + opt.dim_heatmap * num_joints
+		self.netVAE = networks.VAE(x_dim, opt.z_dim, opt.pca_dim)
+		self.netVAE = networks.init_net(self.netVAE, gpu_ids = opt.gpu_ids)
 		if self.isTrain:
 			#define loss functions
-			self.loss = networks.VAELoss().to(self.device)
+			self.criterionVAE = networks.VAELoss().to(self.device)
 			#initialize optimizers
-			self.optimizer = torch.optim.Adam(self.vae.parameters(), lr = opt.lr, betas = opt.beta1)
+			self.optimizer = torch.optim.Adam(self.netVAE.parameters(), lr = opt.lr, betas = (opt.beta1, 0.999))
 
 
 	def set_input(self, input):
@@ -35,20 +41,22 @@ class VAEModel(BaseModel):
 		Parameters:
 			input (dict): include the data itself and its metadata information.
 		"""
-		self.input = input['heatmap'].to(self.device)
+		self.input = input.to(self.device)
 
 
 	def forward(self):
 		""" Run forward pass, called by both functions <optimize_parameters> and <test>
 		"""
-		self.output, self.mu, self.logvar = self.vae(self.input)
+		self.output, self.mu, self.logvar = self.netVAE(self.input)
 
 
 	def update(self):
-		self.set_requires_grad(self.vae, True)  # enable backprop
+		self.set_requires_grad(self.netVAE, True)  # enable backprop
 		self.optimizer.zero_grad()              # set gradients to zero
-		self.loss(self.mu, self.logvar, self.input, self.output)
-		self.loss.backward()
+
+		self.loss_VAE = self.criterionVAE(self.mu, self.logvar, self.input, self.output)
+		self.loss_VAE.backward()
+
 		self.optimizer.step()
 
 
