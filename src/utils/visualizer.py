@@ -7,6 +7,8 @@ from . import utils
 #from . import html
 from subprocess import Popen, PIPE
 #from scipy.misc import imresize
+#import cv2
+import matplotlib.pyplot as plt
 
 
 if sys.version_info[0] == 2:
@@ -35,6 +37,7 @@ class Visualizer():
         self.win_size = opt.display_winsize
         self.name = opt.name
         self.port = opt.display_port
+        self.dim_heatmap = opt.dim_heatmap
         self.saved = False
         if self.display_id > 0:  # connect to a visdom server given <display_port> and <display_server>
             import visdom
@@ -143,6 +146,42 @@ class Visualizer():
     #                 links.append(img_path)
     #             webpage.add_images(ims, txts, links, width=self.win_size)
     #         webpage.save()
+
+
+    def plot_heatmap_xy(self, outputs, inputs):
+        dim_heatmap = self.dim_heatmap
+        size = dim_heatmap * dim_heatmap + dim_heatmap
+        size_xy = dim_heatmap * dim_heatmap
+
+        # we plot 2 joints here
+        # k = 2
+        outdata = outputs[:2*size].cpu().detach().numpy()
+        indata = inputs[:2*size].cpu().detach().numpy()
+
+        pre1 = outdata[:size]
+        pre_xy1 = pre1[:size_xy]
+        pre_xy1 = np.resize(pre_xy1, (dim_heatmap, dim_heatmap))
+
+        pre2 = outdata[size:2*size]
+        pre_xy2 = pre2[:size_xy]
+        pre_xy2 = np.resize(pre_xy2, (dim_heatmap, dim_heatmap))
+
+        gro1 = indata[:size]
+        gro_xy1 = gro1[:size_xy]
+        gro_xy1 = np.resize(gro_xy1, (dim_heatmap, dim_heatmap))
+
+        gro2 = indata[size:2*size]
+        gro_xy2 = gro2[:size_xy]
+        gro_xy2 = np.resize(gro_xy2, (dim_heatmap, dim_heatmap))
+
+
+        f, axarr = plt.subplots(2,2)
+        axarr[0,0].imshow(pre_xy1, cmap = 'gray')
+        axarr[0,1].imshow(pre_xy2, cmap = 'gray')
+        axarr[1,0].imshow(gro_xy1, cmap = 'gray')
+        axarr[1,1].imshow(gro_xy2, cmap = 'gray')
+        plt.show(block=False)
+
 
     def plot_current_losses(self, epoch, counter_ratio, losses):
         """display the current losses on visdom display: dictionary of error labels and values

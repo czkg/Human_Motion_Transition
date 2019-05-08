@@ -3,6 +3,7 @@ from data.base_dataset import BaseDataset
 from utils.calculate_3Dheatmap import calculate_3Dheatmap
 import scipy.io
 import torch
+import numpy as np
 
 
 class PoseDataset(BaseDataset):

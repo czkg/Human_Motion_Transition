@@ -30,6 +30,10 @@ def init_weights(net, init_type='normal', init_gain=1.):
                 init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
             elif init_type == 'orthogonal':
                 init.orthogonal_(m.weight.data, gain=init_gain)
+            elif init_type == 'zeros':
+                init.zeros_(m.weight.data)
+            elif init_type == 'ones':
+                init.ones_(m.weight.data)
             else:
                 raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
             if hasattr(m, 'bias') and m.bias is not None:
@@ -55,7 +59,7 @@ def init_net(net, init_type='normal', init_gain=1., gpu_ids=[]):
         assert(torch.cuda.is_available())
         net.to(gpu_ids[0])
         net = torch.nn.DataParallel(net, gpu_ids)  # multi-GPUs
-    init_weights(net, init_type, init_gain=init_gain)
+    #init_weights(net, init_type, init_gain=init_gain)
     return net
 
 
@@ -268,12 +272,14 @@ class VAE(nn.Module):
 
         # build the network
         # encoder
-        self.fc1 = nn.Linear(self.x_dim, self.pca_dim)
+        self.fc1 = nn.Linear(self.x_dim, 2048)
+        self.fc2 = nn.Linear(2048, self.pca_dim)
         self.fc21 = nn.Linear(self.pca_dim, self.z_dim)
         self.fc22 = nn.Linear(self.pca_dim, self.z_dim)
         # decoder
         self.fc3 = nn.Linear(self.z_dim, self.pca_dim)
-        self.fc4 = nn.Linear(self.pca_dim, self.x_dim)
+        self.fc4 = nn.Linear(self.pca_dim, 2048)
+        self.fc5 = nn.Linear(2048, self.x_dim)
 
 
     def gen_pca(self, x):
@@ -285,8 +291,9 @@ class VAE(nn.Module):
     def encoder(self, x):
         #build encoder model
         h1 = F.leaky_relu(self.fc1(x))
-        mu = self.fc21(h1)
-        logvar = self.fc22(h1)
+        h2 = F.leaky_relu(self.fc2(h1))
+        mu = self.fc21(h2)
+        logvar = self.fc22(h2)
         return mu, logvar
 
     def reparameterize(self, mu, logvar):
@@ -295,8 +302,9 @@ class VAE(nn.Module):
         return mu + eps * std
 
     def decoder(self, z):
-        h2 = F.leaky_relu(self.fc3(z))
-        return self.fc4(h2)
+        h3 = F.leaky_relu(self.fc3(z))
+        h4 = F.leaky_relu(self.fc4(h3))
+        return self.fc5(h4)
         #return torch.sigmoid(self.fc4(h2))
 
 
@@ -311,14 +319,14 @@ class VAELoss(nn.Module):
         super(VAELoss, self).__init__()
 
     def __call__(self, mu, logvar, inputs, outputs):
-        kl_loss = 1 + logvar - mu ** 2 - torch.exp(logvar)
-        kl_loss = torch.sum(kl_loss, dim = -1)
+        kl_loss = torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         kl_loss *= -0.5
 
-        recons_loss = F.mse_loss(inputs, outputs)
+        recons_loss = F.l1_loss(inputs, outputs, reduction = 'mean')
         recons_loss *= 0.5
 
-        loss = torch.mean(recons_loss + kl_loss)
+        loss = recons_loss + kl_loss
+        #print(inputs, '----', outputs)
         return loss
 
 

@@ -1,6 +1,7 @@
 import torch
 from .base_model import BaseModel
 from . import networks
+from utils.visualizer import Visualizer
 
 num_joints = 17
 
@@ -32,7 +33,10 @@ class VAEModel(BaseModel):
 			#define loss functions
 			self.criterionVAE = networks.VAELoss().to(self.device)
 			#initialize optimizers
-			self.optimizer = torch.optim.Adam(self.netVAE.parameters(), lr = opt.lr, betas = (opt.beta1, 0.999))
+			self.optimizerVAE = torch.optim.Adam(self.netVAE.parameters(), lr = opt.lr, betas = (opt.beta1, 0.999))
+			self.optimizers.append(self.optimizerVAE)
+
+		self.vis = Visualizer(opt) 
 
 
 	def set_input(self, input):
@@ -52,14 +56,18 @@ class VAEModel(BaseModel):
 
 	def update(self):
 		self.set_requires_grad(self.netVAE, True)  # enable backprop
-		self.optimizer.zero_grad()              # set gradients to zero
+		self.optimizerVAE.zero_grad()              # set gradients to zero
 
 		self.loss_VAE = self.criterionVAE(self.mu, self.logvar, self.input, self.output)
 		self.loss_VAE.backward()
 
-		self.optimizer.step()
+		self.optimizerVAE.step()
+
+	def visual(self):
+		self.vis.plot_heatmap_xy(self.output[0], self.input[0])
 
 
 	def optimize_parameters(self):
 		self.forward()
 		self.update()
+		self.visual()

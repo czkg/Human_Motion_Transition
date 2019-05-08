@@ -12,6 +12,7 @@ input_path = '../dataset/Human3.6m/3d_poses/'
 output_path = '../dataset/Human3.6m/heatmaps/'
 subs = ['S1', 'S5', 'S6', 'S7', 'S8', 'S9', 'S11']
 
+
 if __name__ == '__main__':
 	if os.path.exists(output_path):
 		rmtree(output_path)
