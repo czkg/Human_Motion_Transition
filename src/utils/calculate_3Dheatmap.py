@@ -10,7 +10,7 @@ import scipy.io
 thres = 1e-4
 
 
-def drawGaussian3D(pt, dim_heatmap = 64, sigma = 0.2):
+def drawGaussian3D(pt, dim_heatmap = 64, sigma = 0.05):
 	x0, y0, z0 = pt
 	#g = np.zeros((dim_heatmap, dim_heatmap, dim_heatmap))
 
@@ -38,7 +38,7 @@ def drawGaussian3D(pt, dim_heatmap = 64, sigma = 0.2):
 
 	return g_xy, g_z
 
-def drawHeatmap3D(pts, dim_heatmap = 64, sigma = 0.2):
+def drawHeatmap3D(pts, dim_heatmap = 64, sigma = 0.05):
 	num_joints = pts.shape[0]
 	heatmap_xy = np.zeros((num_joints, dim_heatmap, dim_heatmap), dtype = np.float32)
 	heatmap_z = np.zeros((num_joints, dim_heatmap), dtype = np.float32)

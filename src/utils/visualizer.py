@@ -38,6 +38,13 @@ class Visualizer():
         self.name = opt.name
         self.port = opt.display_port
         self.dim_heatmap = opt.dim_heatmap
+        self.fig = plt.figure()
+        self.f11 = self.fig.add_subplot(221)
+        self.f12 = self.fig.add_subplot(222)
+        self.f21 = self.fig.add_subplot(223)
+        self.f22 = self.fig.add_subplot(224)
+        plt.ion()
+        #plt.show()
         self.saved = False
         if self.display_id > 0:  # connect to a visdom server given <display_port> and <display_server>
             import visdom
@@ -148,6 +155,21 @@ class Visualizer():
     #         webpage.save()
 
 
+    def updateplot(self, data):
+        p1, p2, g1, g2 = data
+
+        self.f11.clear()
+        self.f12.clear()
+        self.f21.clear()
+        self.f22.clear()
+
+        self.f11.imshow(p1, cmap = 'gray')
+        self.f12.imshow(p2, cmap = 'gray')
+        self.f21.imshow(g1, cmap = 'gray')
+        self.f22.imshow(g2, cmap = 'gray')
+        plt.pause(0.001)
+
+
     def plot_heatmap_xy(self, outputs, inputs):
         dim_heatmap = self.dim_heatmap
         size = dim_heatmap * dim_heatmap + dim_heatmap
@@ -155,8 +177,8 @@ class Visualizer():
 
         # we plot 2 joints here
         # k = 2
-        outdata = outputs[:2*size].cpu().detach().numpy()
-        indata = inputs[:2*size].cpu().detach().numpy()
+        outdata = outputs[size:3*size].cpu().detach().numpy()
+        indata = inputs[size:3*size].cpu().detach().numpy()
 
         pre1 = outdata[:size]
         pre_xy1 = pre1[:size_xy]
@@ -174,13 +196,15 @@ class Visualizer():
         gro_xy2 = gro2[:size_xy]
         gro_xy2 = np.resize(gro_xy2, (dim_heatmap, dim_heatmap))
 
+        self.updateplot([pre_xy1, pre_xy2, gro_xy1, gro_xy2])
 
-        f, axarr = plt.subplots(2,2)
-        axarr[0,0].imshow(pre_xy1, cmap = 'gray')
-        axarr[0,1].imshow(pre_xy2, cmap = 'gray')
-        axarr[1,0].imshow(gro_xy1, cmap = 'gray')
-        axarr[1,1].imshow(gro_xy2, cmap = 'gray')
-        plt.show(block=False)
+
+        # f, axarr = plt.subplots(2,2)
+        # axarr[0,0].imshow(pre_xy1, cmap = 'gray')
+        # axarr[0,1].imshow(pre_xy2, cmap = 'gray')
+        # axarr[1,0].imshow(gro_xy1, cmap = 'gray')
+        # axarr[1,1].imshow(gro_xy2, cmap = 'gray')
+        # plt.show(block=False)
 
 
     def plot_current_losses(self, epoch, counter_ratio, losses):

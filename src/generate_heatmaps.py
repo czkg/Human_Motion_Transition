@@ -7,7 +7,7 @@ from utils.calculate_3Dheatmap import calculate_3Dheatmap
 
 
 dim_heatmap = 64
-sigma = 0.2
+sigma = 0.05
 input_path = '../dataset/Human3.6m/3d_poses/'
 output_path = '../dataset/Human3.6m/heatmaps/'
 subs = ['S1', 'S5', 'S6', 'S7', 'S8', 'S9', 'S11']
