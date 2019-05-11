@@ -38,11 +38,25 @@ class Visualizer():
         self.name = opt.name
         self.port = opt.display_port
         self.dim_heatmap = opt.dim_heatmap
-        self.fig = plt.figure()
-        self.f11 = self.fig.add_subplot(221)
-        self.f12 = self.fig.add_subplot(222)
-        self.f21 = self.fig.add_subplot(223)
-        self.f22 = self.fig.add_subplot(224)
+        self.n_joints = opt.num_joints
+        self.x_values = np.linspace(-1, 1, opt.dim_heatmap)
+        self.fig_groundtruth_xy = plt.figure()
+        self.fig_groundtruth_z = plt.figure()
+        self.fig_predicted_xy = plt.figure()
+        self.fig_predicted_z = plt.figure()
+        #predicted xy
+        for i in range(1, self.n_joints):
+            fig_predicted_xy.add_subplot(4,4,i)
+        #ground truth xy
+        for i in range(1, self.n_joints):
+            fig_groundtruth_xy.add_subplot(4,4,i)
+        #predicted z
+        for i in range(1, self.n_joints):
+            fig_predicted_z.add_subplot(4,4,i)
+        #ground truth z
+        for i in range(1, self.n_joints):
+            fig_groundtruth_z.add_subplot(4,4,i)
+
         plt.ion()
         #plt.show()
         self.saved = False
@@ -156,17 +170,19 @@ class Visualizer():
 
 
     def updateplot(self, data):
-        p1, p2, g1, g2 = data
+        pxy, pz, gxy, gz = data
 
-        self.f11.clear()
-        self.f12.clear()
-        self.f21.clear()
-        self.f22.clear()
+        self.fig_predicted_xy.clear()
+        self.fig_groundtruth_xy.clear()
+        self.fig_predicted_z.clear()
+        self.fig_groundtruth_z.clear()
 
-        self.f11.imshow(p1, cmap = 'gray')
-        self.f12.imshow(p2, cmap = 'gray')
-        self.f21.imshow(g1, cmap = 'gray')
-        self.f22.imshow(g2, cmap = 'gray')
+        for i in range(0, self.n_joints - 1):
+            self.fig_predicted_xy.imshow(pxy[i])
+            self.fig_predicted_z.plot(self.x_values, pz[i])
+            self.fig_groundtruth_xy.imshow(gxy[i])
+            self.fig_groundtruth_z.plot(self.x_values, gz[i])
+
         plt.pause(0.001)
 
 
@@ -174,29 +190,27 @@ class Visualizer():
         dim_heatmap = self.dim_heatmap
         size = dim_heatmap * dim_heatmap + dim_heatmap
         size_xy = dim_heatmap * dim_heatmap
+        n_joints = self.n_joints
 
-        # we plot 2 joints here
-        # k = 2
-        outdata = outputs[size:3*size].cpu().detach().numpy()
-        indata = inputs[size:3*size].cpu().detach().numpy()
+        # we plot 16 joints here
+        # k = 16
+        outdata = outputs[size:].cpu().detach().numpy()
+        indata = inputs[size:].cpu().detach().numpy()
 
-        pre1 = outdata[:size]
-        pre_xy1 = pre1[:size_xy]
-        pre_xy1 = np.resize(pre_xy1, (dim_heatmap, dim_heatmap))
+        pre_xy = np.zeros((n_joints - 1, dim_heatmap, dim_heatmap))
+        pre_z = np.zeros((n_joints - 1, dim_heatmap))
+        gro_xy = np.zeros((n_joints - 1, dim_heatmap, dim_heatmap))
+        gro_z = np.zeros((n_joints - 1, dim_heatmap))
+        for i in range(1, n_joints):
+            pre_data = outdata[i*size:(i+1)*size]
+            pre_xy[i - 1] = np.resize(pre_data[:size_xy], (dim_heatmap, dim_heatmap))
+            pre_z[i - 1] = pre_data[size_xy:]
+            gro_data = indata[i*size:(i+1)*size]
+            gro_xy[i - 1] = np.resize(gro_data[:size_xy], (dim_heatmap, dim_heatmap))
+            gro_z[i - 1] = gro_data[size_xy:]
 
-        pre2 = outdata[size:2*size]
-        pre_xy2 = pre2[:size_xy]
-        pre_xy2 = np.resize(pre_xy2, (dim_heatmap, dim_heatmap))
 
-        gro1 = indata[:size]
-        gro_xy1 = gro1[:size_xy]
-        gro_xy1 = np.resize(gro_xy1, (dim_heatmap, dim_heatmap))
-
-        gro2 = indata[size:2*size]
-        gro_xy2 = gro2[:size_xy]
-        gro_xy2 = np.resize(gro_xy2, (dim_heatmap, dim_heatmap))
-
-        self.updateplot([pre_xy1, pre_xy2, gro_xy1, gro_xy2])
+        self.updateplot([pre_xy, pre_z, gro_xy, gro_z])
 
 
         # f, axarr = plt.subplots(2,2)

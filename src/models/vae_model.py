@@ -3,8 +3,6 @@ from .base_model import BaseModel
 from . import networks
 from utils.visualizer import Visualizer
 
-num_joints = 17
-
 
 class VAEModel(BaseModel):
 	""" This class implements the VAE model.
@@ -26,14 +24,19 @@ class VAEModel(BaseModel):
 		BaseModel.__init__(self, opt)
 		self.loss_names = ['VAE']
 		self.model_names = ['VAE']
-		x_dim = opt.dim_heatmap ** 2 * num_joints + opt.dim_heatmap * num_joints
-		self.netVAE = networks.VAE(x_dim, opt.z_dim, opt.pca_dim)
+		self.n_joints = opt.num_joints
+		self.dim_heatmap = opt.dim_heatmap
+		self.x_dim = self.dim_heatmap ** 2 * self.n_joints + self.dim_heatmap * self.n_joints
+		self.pca_dim = opt.pca_dim
+		self.z_dim = opt.z_dim
+		self.netVAE = networks.VAE(self.x_dim, self.z_dim, self.pca_dim)
 		self.netVAE = networks.init_net(self.netVAE, init_type = opt.init_type, init_gain = opt.init_gain, gpu_ids = opt.gpu_ids)
 		if self.isTrain:
 			#define loss functions
 			self.criterionVAE = networks.VAELoss().to(self.device)
 			#initialize optimizers
-			self.optimizerVAE = torch.optim.Adam(self.netVAE.parameters(), lr = opt.lr, betas = (opt.beta1, 0.999))
+			#self.optimizerVAE = torch.optim.SGD(self.netVAE.parameters(), lr = opt.lr)
+			self.optimizerVAE = torch.optim.Adam(self.netVAE.parameters(), lr = opt.lr, betas = (opt.beta1, 0.999), eps = 1e-6)
 			self.optimizers.append(self.optimizerVAE)
 
 		self.vis = Visualizer(opt) 

@@ -25,6 +25,11 @@ class PoseDataset(BaseDataset):
 			for a in acts:
 				basepath = os.path.join(self.root, s, a)
 				filenames = os.listdir(basepath)
+				filenames = [f[:-4] for f in filenames]
+				filenames = [int(f) for f in filenames]
+				filenames.sort()
+				filenames = [str(f) for f in filenames]
+				filenames = [f+'.mat' for f in filenames]
 				for f in filenames:
 					path = os.path.join(basepath, f)
 					self.paths.append(path)

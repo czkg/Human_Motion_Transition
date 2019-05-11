@@ -57,6 +57,7 @@ class BaseOptions():
         parser.add_argument('--sigma', type=float, default=0.2, help='sigma of the 3D heatmap')
         parser.add_argument('--z_dim', type=int, default=4096, help='dimension of the latent space')
         parser.add_argument('--pca_dim', type=int, default=32768, help='dimension of the pca inside the VAE')
+        parser.add_argument('--num_joints', type = int, default=17, help='number of joints')
 
         # extra parameters
         parser.add_argument('--where_add', type=str, default='all', help='input|all|middle; where to add z in the network G')
