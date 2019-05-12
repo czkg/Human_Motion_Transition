@@ -40,22 +40,30 @@ class Visualizer():
         self.dim_heatmap = opt.dim_heatmap
         self.n_joints = opt.num_joints
         self.x_values = np.linspace(-1, 1, opt.dim_heatmap)
-        self.fig_groundtruth_xy = plt.figure()
-        self.fig_groundtruth_z = plt.figure()
-        self.fig_predicted_xy = plt.figure()
-        self.fig_predicted_z = plt.figure()
+        self.fig_groundtruth_xy = plt.figure(num='ground truth xy')
+        self.fig_groundtruth_z = plt.figure(num='ground truth z')
+        self.fig_predicted_xy = plt.figure(num='predicted xy')
+        self.fig_predicted_z = plt.figure(num='predicted z')
+        self.fgxy = []
+        self.fgz = []
+        self.fpxy = []
+        self.fpz = []
         #predicted xy
         for i in range(1, self.n_joints):
-            fig_predicted_xy.add_subplot(4,4,i)
+            f = self.fig_predicted_xy.add_subplot(4,4,i)
+            self.fpxy.append(f)
         #ground truth xy
         for i in range(1, self.n_joints):
-            fig_groundtruth_xy.add_subplot(4,4,i)
+            f = self.fig_groundtruth_xy.add_subplot(4,4,i)
+            self.fgxy.append(f)
         #predicted z
         for i in range(1, self.n_joints):
-            fig_predicted_z.add_subplot(4,4,i)
+            f = self.fig_predicted_z.add_subplot(4,4,i)
+            self.fpz.append(f)
         #ground truth z
         for i in range(1, self.n_joints):
-            fig_groundtruth_z.add_subplot(4,4,i)
+            f = self.fig_groundtruth_z.add_subplot(4,4,i)
+            self.fgz.append(f)
 
         plt.ion()
         #plt.show()
@@ -170,18 +178,19 @@ class Visualizer():
 
 
     def updateplot(self, data):
-        pxy, pz, gxy, gz = data
+        pxy, pz, gxy, gz = data     
 
-        self.fig_predicted_xy.clear()
-        self.fig_groundtruth_xy.clear()
-        self.fig_predicted_z.clear()
-        self.fig_groundtruth_z.clear()
+        for i in range(self.n_joints - 1):
+            self.fpxy[i].clear()
+            self.fgxy[i].clear()
+            self.fpz[i].clear()
+            self.fgz[i].clear()
 
-        for i in range(0, self.n_joints - 1):
-            self.fig_predicted_xy.imshow(pxy[i])
-            self.fig_predicted_z.plot(self.x_values, pz[i])
-            self.fig_groundtruth_xy.imshow(gxy[i])
-            self.fig_groundtruth_z.plot(self.x_values, gz[i])
+        for i in range(self.n_joints - 1):
+            self.fpxy[i].imshow(pxy[i])
+            self.fpz[i].plot(self.x_values, pz[i])
+            self.fgxy[i].imshow(gxy[i])
+            self.fgz[i].plot(self.x_values, gz[i])
 
         plt.pause(0.001)
 
@@ -197,17 +206,20 @@ class Visualizer():
         outdata = outputs[size:].cpu().detach().numpy()
         indata = inputs[size:].cpu().detach().numpy()
 
+        if len(indata) != (n_joints - 1) * (dim_heatmap * dim_heatmap + dim_heatmap):
+            raise('dimension doesn\'t match!')
+
         pre_xy = np.zeros((n_joints - 1, dim_heatmap, dim_heatmap))
         pre_z = np.zeros((n_joints - 1, dim_heatmap))
         gro_xy = np.zeros((n_joints - 1, dim_heatmap, dim_heatmap))
         gro_z = np.zeros((n_joints - 1, dim_heatmap))
-        for i in range(1, n_joints):
+        for i in range(n_joints-1):
             pre_data = outdata[i*size:(i+1)*size]
-            pre_xy[i - 1] = np.resize(pre_data[:size_xy], (dim_heatmap, dim_heatmap))
-            pre_z[i - 1] = pre_data[size_xy:]
+            pre_xy[i] = np.resize(pre_data[:size_xy], (dim_heatmap, dim_heatmap))
+            pre_z[i] = pre_data[size_xy:]
             gro_data = indata[i*size:(i+1)*size]
-            gro_xy[i - 1] = np.resize(gro_data[:size_xy], (dim_heatmap, dim_heatmap))
-            gro_z[i - 1] = gro_data[size_xy:]
+            gro_xy[i] = np.resize(gro_data[:size_xy], (dim_heatmap, dim_heatmap))
+            gro_z[i] = gro_data[size_xy:]
 
 
         self.updateplot([pre_xy, pre_z, gro_xy, gro_z])

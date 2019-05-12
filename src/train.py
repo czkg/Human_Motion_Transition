@@ -38,6 +38,10 @@ if __name__ == '__main__':
 				continue
 			model.optimize_parameters()      # calculate loss function, get gradients, update network weights
 
+			if total_iters % opt.plot_freq == 0:
+				o, i = model.get_current_out_in()
+				visualizer.plot_heatmap_xy(o, i)
+
 			if total_iters % opt.print_freq == 0:
 				losses = model.get_current_losses()
 				t_comp = (time.time() - iter_start_time) / opt.batch_size

@@ -39,7 +39,7 @@ class VAEModel(BaseModel):
 			self.optimizerVAE = torch.optim.Adam(self.netVAE.parameters(), lr = opt.lr, betas = (opt.beta1, 0.999), eps = 1e-6)
 			self.optimizers.append(self.optimizerVAE)
 
-		self.vis = Visualizer(opt) 
+		# self.vis = Visualizer(opt) 
 
 
 	def set_input(self, input):
@@ -66,11 +66,13 @@ class VAEModel(BaseModel):
 
 		self.optimizerVAE.step()
 
-	def visual(self):
-		self.vis.plot_heatmap_xy(self.output[0], self.input[0])
+	# def visual(self):
+	# 	self.vis.plot_heatmap_xy(self.output[0], self.input[0])
+
+	def get_current_out_in(self):
+		return self.output[0],self.input[0]
 
 
 	def optimize_parameters(self):
 		self.forward()
 		self.update()
-		self.visual()

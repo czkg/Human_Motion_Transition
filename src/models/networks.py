@@ -308,14 +308,15 @@ class VAE(nn.Module):
         h4 = F.leaky_relu(self.fc5(z))
         h5 = F.leaky_relu(self.fc6(h4))
         h6 = F.leaky_relu(self.fc7(h5))
-        return self.fc8(h6)
-        #return torch.sigmoid(self.fc4(h2))
+        #return self.fc8(h6)
+        return torch.sigmoid(self.fc8(h6)), self.fc8(h6)
 
 
     def forward(self, x):
         mu, logvar = self.encoder(x)
         z = self.reparameterize(mu, logvar)
-        return self.decoder(z), mu, logvar
+        out,_ = self.decoder(z)
+        return out, mu, logvar
 
 
 class VAELoss(nn.Module):
@@ -326,8 +327,8 @@ class VAELoss(nn.Module):
         kl_loss = torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         kl_loss *= -0.5
 
-        recons_loss = F.l1_loss(inputs, outputs, reduction = 'sum')
-        recons_loss *= 0.5
+        recons_loss = F.binary_cross_entropy(outputs, inputs, reduction = 'sum')
+        #recons_loss *= 0.5
 
         loss = recons_loss + kl_loss
         #print(inputs, '----', outputs)

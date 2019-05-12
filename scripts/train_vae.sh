@@ -15,7 +15,9 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--pca_dim 2048 \
 	--lr 0.0001 \
 	--beta1 0.9 \
-	--init_type orthogonal \
+	--init_type normal \
 	--init_gain 0.8 \
 	--batch_size 512 \
-	--no_html
+	--no_html \
+	--continue_train \
+	--epoch 55
