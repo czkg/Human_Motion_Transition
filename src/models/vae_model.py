@@ -54,7 +54,13 @@ class VAEModel(BaseModel):
 	def forward(self):
 		""" Run forward pass, called by both functions <optimize_parameters> and <test>
 		"""
-		self.output, self.mu, self.logvar = self.netVAE(self.input)
+		self.output, self.mu, self.logvar, _ = self.netVAE(self.input)
+
+	def test(self):
+		with torch.no_grad():
+			out,_,_,z = self.netVAE(self.input)
+
+			return z, out
 
 
 	def update(self):

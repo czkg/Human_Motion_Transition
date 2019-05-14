@@ -225,14 +225,6 @@ class Visualizer():
         self.updateplot([pre_xy, pre_z, gro_xy, gro_z])
 
 
-        # f, axarr = plt.subplots(2,2)
-        # axarr[0,0].imshow(pre_xy1, cmap = 'gray')
-        # axarr[0,1].imshow(pre_xy2, cmap = 'gray')
-        # axarr[1,0].imshow(gro_xy1, cmap = 'gray')
-        # axarr[1,1].imshow(gro_xy2, cmap = 'gray')
-        # plt.show(block=False)
-
-
     def plot_current_losses(self, epoch, counter_ratio, losses):
         """display the current losses on visdom display: dictionary of error labels and values
         Parameters:

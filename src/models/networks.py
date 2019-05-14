@@ -309,14 +309,14 @@ class VAE(nn.Module):
         h5 = F.leaky_relu(self.fc6(h4))
         h6 = F.leaky_relu(self.fc7(h5))
         #return self.fc8(h6)
-        return torch.sigmoid(self.fc8(h6)), self.fc8(h6)
+        return torch.sigmoid(self.fc8(h6))
 
 
     def forward(self, x):
         mu, logvar = self.encoder(x)
         z = self.reparameterize(mu, logvar)
-        out,_ = self.decoder(z)
-        return out, mu, logvar
+        out = self.decoder(z)
+        return out, mu, logvar, z
 
 
 class VAELoss(nn.Module):

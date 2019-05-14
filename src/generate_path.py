@@ -4,6 +4,10 @@ from shutil import rmtree
 from glob import glob
 import json
 
+"""
+This module is used to generate a json file including all the paths composed of pose id
+"""
+
 # the length of the path is set to 15
 length = 15
 step = 5

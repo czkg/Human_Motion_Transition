@@ -5,6 +5,10 @@ import scipy.io
 from glob import glob
 from utils.calculate_3Dheatmap import calculate_3Dheatmap
 
+"""
+This module is used to generate 2.5D heatmaps for each pose
+"""
+
 
 dim_heatmap = 64
 sigma = 0.05

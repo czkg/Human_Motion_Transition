@@ -3,7 +3,6 @@ import numpy as np
 from numpy import genfromtxt
 from shutil import rmtree
 from glob import glob
-import torch
 import time
 import scipy.io
 
