@@ -90,7 +90,7 @@ def get_scheduler(optimizer, opt):
     return scheduler
 
 
-def get_norm_layer(norm_type='instance'):
+def get_norm_layer(norm_type='none'):
     """Return a normalization layer
     Parameters:
         norm_type (str) -- the name of the normalization layer: batch | instance | none
@@ -122,34 +122,37 @@ def get_non_linearity(layer_type='relu'):
     return nl_layer
 
 
-def define_G(input_size, output_size, z_size, num_downs=7, norm='batch', nl='relu',
-             use_dropout=False, init_type='xavier', init_gain=0.02, gpu_ids=[], where_add='input', upsample='bilinear'):
+def define_G(input_size, output_size, z_size, num_downs=7, norm='none', nl='relu',
+             use_dropout=False, init_type='xavier', init_gain=0.02, gpu_ids=[], where_add='none'):
     net = None
     norm_layer = get_norm_layer(norm_type=norm)
     nl_layer = get_non_linearity(layer_type=nl)
 
     if z_size == 0:
-        where_add = 'input'
+        where_add = 'none'
 
-    if where_add == 'input':
+    if where_add == 'none':
+        net = G_Unet(input_size, output_size, num_downs, norm_layer=norm_layer, nl_layer=nl_layer,
+                     use_dropout=use_dropout)
+    elif where_add == 'input':
         net = G_Unet_add_input(input_size, output_size, z_size, num_downs, norm_layer=norm_layer, nl_layer=nl_layer,
-                               use_dropout=use_dropout, upsample=upsample)
+                               use_dropout=use_dropout)
     elif where_add == 'all':
         net = G_Unet_add_all(input_size, output_size, z_size, num_downs, norm_layer=norm_layer, nl_layer=nl_layer,
-                             use_dropout=use_dropout, upsample=upsample)
+                             use_dropout=use_dropout)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % net)
 
     return init_net(net, init_type, init_gain, gpu_ids)
 
 
-def define_D(input_size, D_layers=3, nl='lrelu', init_type='xavier', init_gain=0.02, gpu_ids=[]):
+def define_D(input_size, d_layers=3, n_neurons, norm='none', nl='lrelu', init_type='xavier', init_gain=0.02, gpu_ids=[]):
     net = None
-    #norm_layer = get_norm_layer(norm_type=norm)
+    norm_layer = get_norm_layer(norm_type=norm)
     nl = 'lrelu'  # use leaky relu for D
     nl_layer = get_non_linearity(layer_type=nl)
 
-    net = D_NLayers(input_size, n_layers=D_layers, nl_layer=nl_layer)
+    net = D_NLayers(input_size, n_layers=d_layers, n_neurons, nl_layer=nl_layer, norm_layer=norm_layer)
     
     return init_net(net, init_type, init_gain, gpu_ids)
 
@@ -223,7 +226,7 @@ def define_E(input_size, output_size, ndf, netE,
 class D_NLayers(nn.Module):
     """Defines a GAN discriminator"""
 
-    def __init__(self, input_size, n_layers=3, n_neurons=512):
+    def __init__(self, input_size, n_layers=3, n_neurons=512, nl_layer, norm_layer=None):
         """Construct a GAN discriminator
         Parameters:
             input_size (int)  -- the size of inputs
@@ -235,11 +238,13 @@ class D_NLayers(nn.Module):
         #     use_bias = norm_layer.func != nn.BatchNorm2d
         # else:
         #     use_bias = norm_layer != nn.BatchNorm2d
-
+        relu = nl_layer()
         output_size = 1 # output dimension
         sequence = []
-        for _ in range(n_neurons):
-            sequence += [nn.Linear(input_size, n_neurons), nn.LeakyReLU(0.2, True)]
+        sequence += ([nn.Linear(input_size, n_neurons)] + [relu])
+
+        for _ in range(n_layers):
+            sequence += ([nn.Linear(n_neurons, n_neurons)] + [relu])
 
         sequence += [nn.Linear(n_neurons, output_size)]
 
@@ -460,32 +465,55 @@ def cal_gradient_penalty(netD, real_data, fake_data, device, type='mixed', const
     else:
         return 0.0, None
 
+
 # Defines the Unet generator.
-# |num_downs|: number of downsamplings in UNet. For example,
-# if |num_downs| == 7, image of size 128x128 will become of size 1x1
-# at the bottleneck
+# |num_downs|: number of downsamplings in UNet.
+class G_Unet(nn.Module):
+    def __init__(self, input_size, output_size, num_downs,
+                 norm_layer=None, nl_layer=None, use_dropout=False):
+        super(G_Unet, self).__init__()
+        # construct unet structure
+        unet_block = UnetBlock(input_size // 16, input_size // 16, input_size // 16,
+                               innermost=True, norm_layer=norm_layer, nl_layer=nl_layer)
+        for i in range(num_downs - 5):
+            unet_block = UnetBlock(input_size // 16, input_size // 16, input_size // 16, unet_block,
+                                   norm_layer=norm_layer, nl_layer=nl_layer)
+        unet_block = UnetBlock(input_size // 8, input_size // 8, input_size // 16, unet_block,
+                               norm_layer=norm_layer, nl_layer=nl_layer)
+        unet_block = UnetBlock(input_size // 4, input_size // 4, input_size // 8, unet_block,
+                               norm_layer=norm_layer, nl_layer=nl_layer)
+        unet_block = UnetBlock(input_size // 2, input_size // 2, input_size // 4, unet_block,
+                               norm_layer=norm_layer, nl_layer=nl_layer)
+        unet_block = UnetBlock(input_size, output_size, input_size // 2, unet_block,
+                               outermost=True, norm_layer=norm_layer, nl_layer=nl_layer)
+
+        self.model = unet_block
+
+    def forward(self, x):
+        return self.model(x)
 
 
+# Defines the Unet generator with z at input.
+# |num_downs|: number of downsamplings in UNet.
 class G_Unet_add_input(nn.Module):
     def __init__(self, input_size, output_size, z_size, num_downs,
-                 norm_layer=None, nl_layer=None, use_dropout=False,
-                 upsample='basic'):
+                 norm_layer=None, nl_layer=None, use_dropout=False):
         super(G_Unet_add_input, self).__init__()
         self.z_size = z_size
         # construct unet structure
         unet_block = UnetBlock(input_size // 16, input_size // 16, input_size // 16,
-                               innermost=True, norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
+                               innermost=True, norm_layer=norm_layer, nl_layer=nl_layer)
         for i in range(num_downs - 5):
             unet_block = UnetBlock(input_size // 16, input_size // 16, input_size // 16, unet_block,
-                                   norm_layer=norm_layer, nl_layer=nl_layer, use_dropout=use_dropout, upsample=upsample)
+                                   norm_layer=norm_layer, nl_layer=nl_layer)
         unet_block = UnetBlock(input_size // 8, input_size // 8, input_size // 16, unet_block,
-                               norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
+                               norm_layer=norm_layer, nl_layer=nl_layer)
         unet_block = UnetBlock(input_size // 4, input_size // 4, input_size // 8, unet_block,
-                               norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
+                               norm_layer=norm_layer, nl_layer=nl_layer)
         unet_block = UnetBlock(input_size // 2, input_size // 2, input_size // 4, unet_block,
-                               norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
+                               norm_layer=norm_layer, nl_layer=nl_layer)
         unet_block = UnetBlock(input_size + z_size, output_size, input_size // 2, unet_block,
-                               outermost=True, norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
+                               outermost=True, norm_layer=norm_layer, nl_layer=nl_layer)
 
         self.model = unet_block
 
@@ -503,15 +531,14 @@ class G_Unet_add_input(nn.Module):
 
 # Defines the submodule with skip connection.
 # X -------------------identity---------------------- X
-#   |-- downsampling -- |submodule| -- upsampling --|
+#   |-- encode -- |submodule| -- decode --|
 # we use fully connected layers
 class UnetBlock(nn.Module):
     def __init__(self, input_size, outer_size, inner_size,
                  submodule=None, outermost=False, innermost=False,
-                 norm_layer=None, nl_layer=None, use_dropout=False, upsample='basic'):
+                 norm_layer=None, nl_layer=None, use_dropout=False):
         super(UnetBlock, self).__init__()
         self.outermost = outermost
-        p = 0
         downlinear = []
         downlinear += [nn.Linear(input_size, inner_size)]
         # downsample is different from upsample
@@ -657,28 +684,23 @@ class E_ResNet(nn.Module):
 
 
 # Defines the Unet generator.
-# |num_downs|: number of downsamplings in UNet. For example,
-# if |num_downs| == 7, image of size 128x128 will become of size 1x1
-# at the bottleneck
+# |num_downs|: number of downsamplings in UNet.
 class G_Unet_add_all(nn.Module):
     def __init__(self, input_size, output_size, z_size, num_downs,
                  norm_layer=None, nl_layer=None, use_dropout=False):
         super(G_Unet_add_all, self).__init__()
-        self.z_size = z_size
         # construct unet structure
         unet_block = UnetBlock_with_z(input_size // 16, input_size // 16, input_size // 16, z_size, None, innermost=True,
                                       norm_layer=norm_layer, nl_layer=nl_layer)
-        unet_block = UnetBlock_with_z(input_size // 16, input_size // 16, input_size // 16, z_size, unet_block,
-                                      norm_layer=norm_layer, nl_layer=nl_layer, use_dropout=use_dropout)
-        for i in range(num_downs - 6):
+        for i in range(num_downs - 5):
             unet_block = UnetBlock_with_z(input_size // 16, input_size // 16, input_size // 16, z_size, unet_block,
                                           norm_layer=norm_layer, nl_layer=nl_layer, use_dropout=use_dropout)
         unet_block = UnetBlock_with_z(input_size // 8, input_size // 8, input_size // 16, z_size, unet_block,
                                       norm_layer=norm_layer, nl_layer=nl_layer)
         unet_block = UnetBlock_with_z(input_size // 4, input_size // 4, input_size // 8, z_size, unet_block,
                                       norm_layer=norm_layer, nl_layer=nl_layer)
-        unet_block = UnetBlock_with_z(
-            input_size // 2, input_size // 2, input_size // 4, z_size, unet_block, norm_layer=norm_layer, nl_layer=nl_layer)
+        unet_block = UnetBlock_with_z(input_size // 2, input_size // 2, input_size // 4, z_size, unet_block, 
+                                      norm_layer=norm_layer, nl_layer=nl_layer)
         unet_block = UnetBlock_with_z(input_size, output_size, input_size // 2, z_size, unet_block,
                                       outermost=True, norm_layer=norm_layer, nl_layer=nl_layer)
         self.model = unet_block
@@ -692,7 +714,6 @@ class UnetBlock_with_z(nn.Module):
                  submodule=None, outermost=False, innermost=False,
                  norm_layer=None, nl_layer=None, use_dropout=False):
         super(UnetBlock_with_z, self).__init__()
-        p = 0
         downlinear = []
 
         self.outermost = outermost

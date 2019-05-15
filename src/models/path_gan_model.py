@@ -54,15 +54,18 @@ class PathGANModel(BaseModel):
     	else:
     		self.model_names = ['G']
 
+        self.input_size = opt.input_latent * opt.path_length
+        self.output_size = opt.output_latent * opt.path_length
+
     	# define networks (both generator and discriminator)
-    	self.netG = networks.define_G(opt.input_size, opt.output_size, opt.z_size, num_downs=opt.num_downs,
+    	self.netG = networks.define_G(self.input_size, self.output_size, opt.z_size, num_downs=opt.num_downs,
                                       norm=opt.norm, nl=opt.nl, use_dropout=opt.use_dropout, init_type=opt.init_type, init_gain=opt.init_gain,
                                       gpu_ids=self.gpu_ids, where_add=opt.where_add, upsample=opt.upsample)
 
     	# define a discriminator. Conditional GANs need to take both input and putput. Therefore, #channels for D is input_nc + output_nc
     	if self.isTrain:
-    		self.netD = networks.define_D(opt.input_size + opt.output_size, netD=opt.netD2, norm=opt.norm, nl=opt.nl,
-                                          init_type=opt.init_type, init_gain=opt.init_gain, num_Ds=opt.num_Ds, gpu_ids=self.gpu_ids)
+    		self.netD = networks.define_D(self.input_size + self.output_size, opt.d_layers, opt.output_latent, norm=opt.norm, nl=opt.nl,
+                                          init_type=opt.init_type, init_gain=opt.init_gain, gpu_ids=self.gpu_ids)
 
     	if self.isTrain:
     		# define loss functions

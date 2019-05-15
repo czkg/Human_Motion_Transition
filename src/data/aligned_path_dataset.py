@@ -30,6 +30,7 @@ class AlignedPathDataset(BaseDataset):
 		self.mode = opt.a_mode
 		if self.mode is not in modes:
 			raise('invalid mode for A!')
+		self.path_length = opt.path_length
 
 
 
@@ -47,11 +48,13 @@ class AlignedPathDataset(BaseDataset):
 		current_path = self.paths[index]
 		B = scipy.io.loadmat(current_path)['data']
 		A = B.copy()
+		steps = len(B)
+		if self.path_length != steps:
+			raise('path length not matching in data and opt')
 
 		if self.mode == 'zeros':
 			A[1:-1] = 0.0
 		elif self.mode == 'linear':
-			steps = len(B)
 			BA = np.array([utils.slerp(B[0], B[-1], t) for t in np.linspace(0, 1, steps)])
 			A[1:-1] = BA[1:-1]
 		else:
