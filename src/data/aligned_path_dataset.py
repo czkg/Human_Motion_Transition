@@ -1,10 +1,12 @@
 from data.base_dataset import BaseDataset
-from models import networks
-from numpy import genfromtxt
-from utils.calculate_3Dheatmap import calculate_3Dheatmap
+import numpy as np
+import os
+import scipy.io
+import torch
+import utils
 
 # !TO DO!add modes later
-mode = []
+#modes = ['zeros', 'linear', 'geodesic']
 
 
 class AlignedPathDataset(BaseDataset):
@@ -19,31 +21,16 @@ class AlignedPathDataset(BaseDataset):
 		"""
 
 		BaseDataset.__init__(self, opt)
-		#self.A_paths = sorted(make_dataset(opt.dataroot, opt.max_dataset_size))
+		self.paths = []
+		files = os.listdir(self.root)
+		for f in files:
+			path = os.path.join(self.root, f)
+			self.paths.append(path)
 
-		self.with_vae = opt.with_vae
-		if self.with_vae:
-			self.vae = network.VAE(opt.dim_heatmap, opt.z_dim, opt.pca_dim)
-			self.vae.load_state_dict(torch.load(opt.vae_path))
-		path = opt.datapath      #path to the json file
+		self.mode = opt.a_mode
+		if self.mode is not in modes:
+			raise('invalid mode for A!')
 
-		self.data = []
-		self.metadata = []
-		count = 0
-		with open(path) as f:
-			rawdata = json.load(f)
-		subs = list(rawdata.keys())
-
-		for s in subs:
-			acts = list(rawdata[s].keys())
-			for a in acts:
-				number = len(rawdata[s][a])
-				for i in range(number):
-					self.data.append(rawdata[s][a][i])
-					self.metadata.extend(s + '/' + a)
-
-		self.dim_heatmap = opt.dim_heatmap
-		self.sigma = opt.sigma
 
 
 	def __getitem__(self, index):
@@ -57,29 +44,24 @@ class AlignedPathDataset(BaseDataset):
 			B(tensor) -- groundtruth path (a vector of poses)
 		"""
 
-		this_path_data = self.data[index]
-		this_path_folder = self.metadata[index]
-		A, B = path2data(this_path_data, this_path_folder)
+		current_path = self.paths[index]
+		B = scipy.io.loadmat(current_path)['data']
+		A = B.copy()
+
+		if self.mode == 'zeros':
+			A[1:-1] = 0.0
+		elif self.mode == 'linear':
+			steps = len(B)
+			BA = np.array([utils.slerp(B[0], B[-1], t) for t in np.linspace(0, 1, steps)])
+			A[1:-1] = BA[1:-1]
+		else:
+			raise NotImplementedError('mode [%s] is not implemented' % self.mode)
+
+		B = torch.tensor(np.ravel(B))
+		A = torch.tensor(np.ravel(A))
 		return {'A': A, 'B': B}
 
 	def __len__(self):
 		""" Return the total number of paths in the dataset
 		"""
 		return len(self.data)
-
-
-	def path2data(self, path_data, path_folder):
-		path_len = len(path_data)
-
-		B = []
-		A = []
-		#loop through every point in the path
-		for i in range(path_len):
-			current_path = self.root + '/' + path_folder + '/' + str(path_data[i]) + '.csv'   #dataroot: path to csv files
-			pts = genfromtxt(current_path, delimiter = ' ')
-			heatmap = calculate_3Dheatmap(pts, self.dim_heatmap, self.sigma)
-			_, z = self.vae(heatmap)
-			B.append(z)
-		A = B
-		A[1:-1] = 0.0
-		return np.ravel(A), np.ravel(B)

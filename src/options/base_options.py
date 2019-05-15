@@ -17,7 +17,7 @@ class BaseOptions():
         It also gathers additional options defined in <modify_commandline_options> functions in both dataset class and model class.
         """
         parser.add_argument('--dataroot', required=True, help='path to data')
-        parser.add_argument('--datapath', required=False, help='path to json file')
+        #parser.add_argument('--datapath', required=False, help='path to json file')
         parser.add_argument('--batch_size', type=int, default=32, help='input batch size')
         #parser.add_argument('--load_size', type=int, default=286, help='scale images to this size')
         parser.add_argument('--input_size', type=int, default=3, help='size of input data')
@@ -36,8 +36,9 @@ class BaseOptions():
         parser.add_argument('--use_dropout', action='store_true', help='use dropout for the generator')
         parser.add_argument('--max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
         #parser.add_argument('--no_flip', action='store_true', help='if specified, do not flip the images for data argumentation')
-        parser.add_argument('--with_vae', action='store_true', help='use VAE in the model')
+        #parser.add_argument('--with_vae', action='store_true', help='use VAE in the model')
         parser.add_argument('--vae_path', type=str, default='', help='the path of the pretrained vae model')
+        parser.add_argument('--a_mode', type=str, default='zeros',help='the method to fill in the intermediate frames between head and tail')
 
         # model parameters
         #parser.add_argument('--num_Ds', type=int, default=2, help='number of Discrminators')
