@@ -17,7 +17,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--init_gain 0.8 \
 	--batch_size 512 \
 	--path_length 15 \
-	--a_mode zeros \
+	--a_mode linear \
 	--gan_mode wgangp \
 	--no_html \
 	--use_dropout
