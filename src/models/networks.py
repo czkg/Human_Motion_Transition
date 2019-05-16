@@ -369,8 +369,8 @@ class GANLoss(nn.Module):
 
         Parameters:
             gan_mode (str) - - the type of GAN objective. It currently supports vanilla, lsgan, and wgangp.
-            target_real_label (bool) - - label for a real image
-            target_fake_label (bool) - - label of a fake image
+            target_real_label (bool) - - label for a real input
+            target_fake_label (bool) - - label of a fake input
 
         Note: Do not use sigmoid as the last layer of Discriminator.
         LSGAN needs no sigmoid. vanilla GANs will handle it with BCEWithLogitsLoss.
@@ -383,7 +383,7 @@ class GANLoss(nn.Module):
             self.loss = nn.MSELoss()
         elif gan_mode == 'vanilla':
             self.loss = nn.BCEWithLogitsLoss()
-        elif gan_mode in ['wgangp']:
+        elif gan_mode == 'wgangp':
             self.loss = None
         else:
             raise NotImplementedError('gan mode %s not implemented' % gan_mode)
