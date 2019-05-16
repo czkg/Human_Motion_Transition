@@ -146,13 +146,13 @@ def define_G(input_size, output_size, z_size, num_downs=7, norm='none', nl='relu
     return init_net(net, init_type, init_gain, gpu_ids)
 
 
-def define_D(input_size, d_layers=3, n_neurons, norm='none', nl='lrelu', init_type='xavier', init_gain=0.02, gpu_ids=[]):
+def define_D(input_size, n_neurons, d_layers=3, norm='none', nl='lrelu', init_type='xavier', init_gain=0.02, gpu_ids=[]):
     net = None
     norm_layer = get_norm_layer(norm_type=norm)
     nl = 'lrelu'  # use leaky relu for D
     nl_layer = get_non_linearity(layer_type=nl)
 
-    net = D_NLayers(input_size, n_layers=d_layers, n_neurons, nl_layer=nl_layer, norm_layer=norm_layer)
+    net = D_NLayers(input_size, n_neurons, n_layers=d_layers, nl_layer=nl_layer, norm_layer=norm_layer)
     
     return init_net(net, init_type, init_gain, gpu_ids)
 
@@ -226,7 +226,7 @@ def define_E(input_size, output_size, ndf, netE,
 class D_NLayers(nn.Module):
     """Defines a GAN discriminator"""
 
-    def __init__(self, input_size, n_layers=3, n_neurons=512, nl_layer, norm_layer=None):
+    def __init__(self, input_size, n_neurons, n_layers=3, nl_layer=None, norm_layer=None):
         """Construct a GAN discriminator
         Parameters:
             input_size (int)  -- the size of inputs
@@ -548,7 +548,7 @@ class UnetBlock(nn.Module):
         upnorm = norm_layer(outer_size) if norm_layer is not None else None
 
         if outermost:
-            uplinear = [nn.Linear(inner_size, outer_size)]
+            uplinear = [nn.Linear(inner_size * 2, outer_size)]
             down = downlinear
             up = [uprelu] + uplinear + [nn.Tanh()]
             model = down + [submodule] + up
@@ -560,7 +560,7 @@ class UnetBlock(nn.Module):
                 up += [upnorm]
             model = down + up
         else:
-            uplinear = [nn.Linear(inner_size, outer_size)]
+            uplinear = [nn.Linear(inner_size * 2, outer_size)]
             down = [downrelu] + downlinear
             if downnorm is not None:
                 down += [downnorm]
@@ -579,7 +579,7 @@ class UnetBlock(nn.Module):
         if self.outermost:
             return self.model(x)
         else:
-            return torch.cat([self.model(x), x], 1)
+            return torch.cat((self.model(x), x), 1)
 
 
 def conv3x3(in_planes, out_planes):

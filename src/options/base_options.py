@@ -32,7 +32,6 @@ class BaseOptions():
         parser.add_argument('--serial_batches', action='store_true', help='if true, takes inputs in order to make batches, otherwise takes them randomly')
         parser.add_argument('--use_dropout', action='store_true', help='use dropout for the generator')
         parser.add_argument('--max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
-        parser.add_argument('--vae_path', type=str, default='', help='the path of the pretrained vae model')
         parser.add_argument('--a_mode', type=str, default='zeros',help='the method to fill in the intermediate frames between head and tail')
         parser.add_argument('--path_length', type=int, default=15, help='the length of the path')
 

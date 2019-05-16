@@ -28,8 +28,6 @@ class AlignedPathDataset(BaseDataset):
 			self.paths.append(path)
 
 		self.mode = opt.a_mode
-		if self.mode is not in modes:
-			raise('invalid mode for A!')
 		self.path_length = opt.path_length
 
 
@@ -67,4 +65,4 @@ class AlignedPathDataset(BaseDataset):
 	def __len__(self):
 		""" Return the total number of paths in the dataset
 		"""
-		return len(self.data)
+		return len(self.paths)
