@@ -51,9 +51,10 @@ class PathGANModel(BaseModel):
 
         self.input_size = opt.input_latent * opt.path_length
         self.output_size = opt.output_latent * opt.path_length
+        self.z_size = opt.z_size
 
         # define networks (both generator and discriminator)
-        self.netG = networks.define_G(self.input_size, self.output_size, opt.z_size, num_downs=opt.num_downs,
+        self.netG = networks.define_G(self.input_size, self.output_size, self.z_size, num_downs=opt.num_downs,
                                       norm=opt.norm, nl=opt.nl, use_dropout=opt.use_dropout, init_type=opt.init_type, init_gain=opt.init_gain,
                                       gpu_ids=self.gpu_ids, where_add=opt.where_add)
 
@@ -85,10 +86,21 @@ class PathGANModel(BaseModel):
         self.real_A = input['A' if AtoB else 'B'].to(self.device)
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
 
+    def get_z_random(self, batch_size, z_size, random_type='gauss'):
+        if random_type =='uni':
+            z = torch.rand(batch_size, z_size) * 2.0 - 1.0
+        elif random_type == 'gauss':
+            z = torch.randn(batch_size, z_size)
+        return z.to(self.device)
+
     def forward(self):
         """ Run forward pass, called by both functions <optimize_parameters> and <test>.
         """
-        self.fake_B = self.netG(self.real_A)  # G(A)
+        if self.z_size > 0:
+            self.z_random = self.get_z_random(self.real_A.size(0), self.z_size)
+            self.fake_B = self.netG(self.real_A, self.z_random)
+        else:
+            self.fake_B = self.netG(self.real_A)  # G(A)
 
     def backward_D(self):
         """ Calculate GAN loss for the discriminator

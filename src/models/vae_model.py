@@ -62,6 +62,9 @@ class VAEModel(BaseModel):
 
 			return z, out
 
+	def valid(self):
+		out,_,_,z = self.netVAE(self.input)
+		return z, out
 
 	def update(self):
 		self.set_requires_grad(self.netVAE, True)  # enable backprop

@@ -6,7 +6,7 @@ import torch
 from utils.utils import slerp
 
 # !TO DO!add modes later
-#modes = ['zeros', 'linear', 'geodesic']
+#modes = ['zeros', 'ones', linear', 'geodesic']
 
 
 class AlignedPathDataset(BaseDataset):
@@ -52,6 +52,8 @@ class AlignedPathDataset(BaseDataset):
 
 		if self.mode == 'zeros':
 			A[1:-1] = 0.0
+		elif self.mode == 'ones':
+			A[1:-1] = 1.0
 		elif self.mode == 'linear':
 			BA = np.array([slerp(B[0], B[-1], t) for t in np.linspace(0, 1, steps)])
 			A[1:-1] = BA[1:-1]

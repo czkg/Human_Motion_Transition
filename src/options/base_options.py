@@ -32,8 +32,9 @@ class BaseOptions():
         parser.add_argument('--serial_batches', action='store_true', help='if true, takes inputs in order to make batches, otherwise takes them randomly')
         parser.add_argument('--use_dropout', action='store_true', help='use dropout for the generator')
         parser.add_argument('--max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
-        parser.add_argument('--a_mode', type=str, default='zeros',help='zeros|linear|geodesic; the method to fill in the intermediate frames between head and tail')
+        parser.add_argument('--a_mode', type=str, default='ones',help='zeros|ones|linear|geodesic; the method to fill in the intermediate frames between head and tail')
         parser.add_argument('--path_length', type=int, default=15, help='the length of the path')
+        parser.add_argument('--key_frames', '--list', nargs='+', type=int, help='the key frames in one path')
 
         # model parameters
         parser.add_argument('--norm', type=str, default='none', help='instance normalization or batch normalization')
@@ -41,9 +42,9 @@ class BaseOptions():
         parser.add_argument('--num_downs', type=int, default=7, help='# of downsamplings in Generator')
         parser.add_argument('--d_layers', type=int, default=3, help='# of layers in Discrminators')
         parser.add_argument('--dim_heatmap', type=int, default=64, help='the dimension of the 3D heatmap, the heatmap has to be a cube')
-        parser.add_argument('--sigma', type=float, default=0.2, help='sigma of the 3D heatmap')
-        parser.add_argument('--z_dim', type=int, default=4096, help='dimension of the latent space')
-        parser.add_argument('--pca_dim', type=int, default=32768, help='dimension of the pca inside the VAE')
+        parser.add_argument('--sigma', type=float, default=0.05, help='sigma of the 3D heatmap')
+        parser.add_argument('--z_dim', type=int, default=512, help='dimension of the latent space')
+        parser.add_argument('--pca_dim', type=int, default=2048, help='dimension of the pca inside the VAE')
         parser.add_argument('--num_joints', type = int, default=17, help='number of joints')
 
         # extra parameters

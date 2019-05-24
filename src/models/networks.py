@@ -98,9 +98,9 @@ def get_norm_layer(norm_type='none'):
     For InstanceNorm, we do not use learnable affine parameters. We do not track running statistics.
     """
     if norm_type == 'batch':
-        norm_layer = functools.partial(nn.BatchNorm2d, affine=True, track_running_stats=True)
+        norm_layer = functools.partial(nn.BatchNorm1d, affine=True, track_running_stats=True)
     elif norm_type == 'instance':
-        norm_layer = functools.partial(nn.InstanceNorm2d, affine=False, track_running_stats=False)
+        norm_layer = functools.partial(nn.InstanceNorm1d, affine=False, track_running_stats=False)
     elif norm_type == 'none':
         norm_layer = None
     else:
@@ -477,7 +477,7 @@ class G_Unet(nn.Module):
                                innermost=True, norm_layer=norm_layer, nl_layer=nl_layer)
         for i in range(num_downs - 5):
             unet_block = UnetBlock(input_size // 16, input_size // 16, input_size // 16, unet_block,
-                                   norm_layer=norm_layer, nl_layer=nl_layer)
+                                   norm_layer=norm_layer, nl_layer=nl_layer, use_dropout=use_dropout)
         unet_block = UnetBlock(input_size // 8, input_size // 8, input_size // 16, unet_block,
                                norm_layer=norm_layer, nl_layer=nl_layer)
         unet_block = UnetBlock(input_size // 4, input_size // 4, input_size // 8, unet_block,
@@ -505,7 +505,7 @@ class G_Unet_add_input(nn.Module):
                                innermost=True, norm_layer=norm_layer, nl_layer=nl_layer)
         for i in range(num_downs - 5):
             unet_block = UnetBlock(input_size // 16, input_size // 16, input_size // 16, unet_block,
-                                   norm_layer=norm_layer, nl_layer=nl_layer)
+                                   norm_layer=norm_layer, nl_layer=nl_layer, use_dropout=use_dropout)
         unet_block = UnetBlock(input_size // 8, input_size // 8, input_size // 16, unet_block,
                                norm_layer=norm_layer, nl_layer=nl_layer)
         unet_block = UnetBlock(input_size // 4, input_size // 4, input_size // 8, unet_block,
@@ -726,7 +726,7 @@ class UnetBlock_with_z(nn.Module):
         uprelu = nl_layer()
 
         if outermost:
-            uplinear = [nn.Linear(inner_size, outer_size)]
+            uplinear = [nn.Linear(inner_size * 2, outer_size)]
             down = downlinear
             up = [uprelu] + uplinear + [nn.Tanh()]
         elif innermost:
@@ -734,9 +734,9 @@ class UnetBlock_with_z(nn.Module):
             down = [downrelu] + downlinear
             up = [uprelu] + uplinear
             if norm_layer is not None:
-                up += [norm_layer(outer_linear)]
+                up += [norm_layer(outer_size)]
         else:
-            uplinear = [nn.Linear(inner_size, outer_size)]
+            uplinear = [nn.Linear(inner_size * 2, outer_size)]
             down = [downrelu] + downlinear
             if norm_layer is not None:
                 down += [norm_layer(inner_size)]
@@ -754,8 +754,7 @@ class UnetBlock_with_z(nn.Module):
     def forward(self, x, z):
         # print(x.size())
         if self.z_size > 0:
-            z_img = z.view(z.size(0), z.size(1), 1, 1).expand(z.size(0), z.size(1), x.size(2), x.size(3))
-            x_and_z = torch.cat([x, z_img], 1)
+            x_and_z = torch.cat([x, z], 1)
         else:
             x_and_z = x
 
