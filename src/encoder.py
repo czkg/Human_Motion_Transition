@@ -51,7 +51,7 @@ if __name__ == '__main__':
 				heatmap = scipy.io.loadmat(f)['heatmap'][0]
 				heatmap = torch.tensor(heatmap)
 				model.set_input(heatmap)
-				z,_ = model.test()
+				z,_ = model.inference()
 				z = z.data.cpu().numpy()
 				filename = output_path + s + '/' + act + '/' + filename
 				scipy.io.savemat(filename, {'latent': z})

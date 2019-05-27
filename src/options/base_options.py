@@ -16,7 +16,7 @@ class BaseOptions():
         It also implements several helper functions such as parsing, printing, and saving the options.
         It also gathers additional options defined in <modify_commandline_options> functions in both dataset class and model class.
         """
-        parser.add_argument('--dataroot', required=True, help='path to data')
+        parser.add_argument('--dataroot', type=str, help='path to data')
         parser.add_argument('--batch_size', type=int, default=32, help='input batch size')
         parser.add_argument('--input_latent', type=int, default=512, help='size of single input latant data')
         parser.add_argument('--output_latent', type=int, default=512, help='size of single output latent data')

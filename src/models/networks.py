@@ -38,7 +38,7 @@ def init_weights(net, init_type='normal', init_gain=1.):
                 raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
             if hasattr(m, 'bias') and m.bias is not None:
                 init.constant_(m.bias.data, 0.0)
-        elif classname.find('BatchNorm2d') != -1:  # BatchNorm Layer's weight is not a matrix; only normal distribution applies.
+        elif classname.find('BatchNorm1d') != -1:  # BatchNorm Layer's weight is not a matrix; only normal distribution applies.
             init.normal_(m.weight.data, 1.0, init_gain)
             init.constant_(m.bias.data, 0.0)
 
@@ -264,7 +264,7 @@ class VAE(nn.Module):
         and recover the original data from it.
     """
 
-    def __init__(self, x_dim, z_dim, pca_dim):
+    def __init__(self, x_dim, z_dim, pca_dim, is_decoder):
         """ Initialize the VAE class
 
         Parameters:
@@ -274,6 +274,7 @@ class VAE(nn.Module):
         self.x_dim = x_dim
         self.z_dim = z_dim
         self.pca_dim =pca_dim
+        self.is_decoder = is_decoder
 
         # build the network
         # encoder
@@ -318,10 +319,14 @@ class VAE(nn.Module):
 
 
     def forward(self, x):
-        mu, logvar = self.encoder(x)
-        z = self.reparameterize(mu, logvar)
-        out = self.decoder(z)
-        return out, mu, logvar, z
+        if not self.is_decoder:
+            mu, logvar = self.encoder(x)
+            z = self.reparameterize(mu, logvar)
+            out = self.decoder(z)
+            return out, mu, logvar, z
+        else:
+            out = self.decoder(x)
+            return out
 
 
 class VAELoss(nn.Module):

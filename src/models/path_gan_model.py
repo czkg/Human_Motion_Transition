@@ -102,6 +102,11 @@ class PathGANModel(BaseModel):
         else:
             self.fake_B = self.netG(self.real_A)  # G(A)
 
+    def inference(self):
+        with torch.no_grad():
+            fake_B = self.netG(self.real_A)
+            return fake_B
+
     def backward_D(self):
         """ Calculate GAN loss for the discriminator
         """

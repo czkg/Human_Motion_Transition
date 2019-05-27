@@ -29,7 +29,11 @@ class VAEModel(BaseModel):
 		self.x_dim = self.dim_heatmap ** 2 * self.n_joints + self.dim_heatmap * self.n_joints
 		self.pca_dim = opt.pca_dim
 		self.z_dim = opt.z_dim
-		self.netVAE = networks.VAE(self.x_dim, self.z_dim, self.pca_dim)
+		if opt.is_decoder:
+			self.is_decoder = True
+		else:
+			self.is_decoder = False
+		self.netVAE = networks.VAE(self.x_dim, self.z_dim, self.pca_dim, self.is_decoder)
 		self.netVAE = networks.init_net(self.netVAE, init_type = opt.init_type, init_gain = opt.init_gain, gpu_ids = opt.gpu_ids)
 		if self.isTrain:
 			#define loss functions
@@ -56,11 +60,20 @@ class VAEModel(BaseModel):
 		"""
 		self.output, self.mu, self.logvar, _ = self.netVAE(self.input)
 
-	def test(self):
+	def inference(self):
 		with torch.no_grad():
 			out,_,_,z = self.netVAE(self.input)
 
 			return z, out
+
+	def decoder(self, z):
+		z = z.to(self.device)
+		if not self.is_decoder:
+			assert('should be in decoder mode')
+		with torch.no_grad():
+			out = self.netVAE(z)
+			return out
+
 
 	def valid(self):
 		out,_,_,z = self.netVAE(self.input)
