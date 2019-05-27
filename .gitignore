@@ -3,6 +3,7 @@ libs/*
 papers/*
 trunk/*
 results/*
+res/*
 .cproject
 .project
 **/.DS_Store
