@@ -4,6 +4,8 @@ from glob import glob
 from options.test_options import TestOptions
 import torch
 import scipy.io
+from shutil import rmtree
+from models import create_model
 
 
 if __name__ == '__main__':
@@ -21,6 +23,10 @@ if __name__ == '__main__':
 
 	input_path = opt.input_path
 	output_path = opt.output_path
+
+	if os.path.exists(output_path):
+		rmtree(output_path)
+	os.makedirs(output_path)
 
 	file_list = glob(input_path + '/*.mat')
 	for f in file_list:

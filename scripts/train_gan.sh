@@ -11,14 +11,14 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--checkpoints_dir ../results \
 	--niter 100 \
 	--niter_decay 30 \
-	--lr 0.0001 \
+	--lr 0.0003 \
 	--beta1 0.9 \
 	--init_type kaiming \
 	--init_gain 0.8 \
 	--batch_size 32 \
 	--path_length 15 \
 	--key_frames 0 14 \
-	--a_mode linear \
+	--a_mode zeros \
 	--gan_mode lsgan \
 	--norm instance \
 	--lambda_L1 1000 \
