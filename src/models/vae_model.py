@@ -54,6 +54,9 @@ class VAEModel(BaseModel):
 		"""
 		self.input = input.to(self.device)
 
+	def get_model(self):
+		return self.netVAE
+
 
 	def forward(self):
 		""" Run forward pass, called by both functions <optimize_parameters> and <test>
@@ -75,9 +78,12 @@ class VAEModel(BaseModel):
 			return out
 
 
-	def valid(self):
-		out,_,_,z = self.netVAE(self.input)
-		return z, out
+	def decoder_with_grad(self, z):
+		z = z.to(self.device)
+		if not self.is_decoder:
+			assert('should be in decoder mode')
+		out = self.netVAE(z)
+		return out
 
 	def update(self):
 		self.set_requires_grad(self.netVAE, True)  # enable backprop

@@ -17,7 +17,6 @@ class RiemannianTree(object):
 		knn.fit(z.detach().numpy())
 
 		G = nx.Graph()
-
 		#nodes
 		for i in range(n_data):
 			n_attr = {f'z{k}': float(z[i, k]) for k in range(z.shape[1])}
@@ -41,5 +40,6 @@ class RiemannianTree(object):
 						 	 'distance_riemann': float(L_riemann),
 						 	 'distance_euclidean': float(L_euclidean)}
 				G.add_edge(i, ix, **edge_attr)
+				#G.edges[i, ix]['weight'] = float(1/L_riemann)
 
 		return G
