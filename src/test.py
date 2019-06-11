@@ -18,7 +18,7 @@ if __name__ =='__main__':
 	opt.batch_size = 1     # test code only support batch_size = 1
 	opt.serial_batches = True  # no shuffle
 
-	# create dataset
+	# create model
 	model = create_model(opt)
 	model.setup(opt)
 	model.eval()

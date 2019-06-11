@@ -15,4 +15,5 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/decoder.py \
 	--epoch 20 \
 	--input_path ../res/gan \
 	--output_path ../res/gan/heatmaps \
-	--path_length 15
+	--path_length 10 \
+	--is_decoder

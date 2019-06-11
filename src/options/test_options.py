@@ -12,7 +12,6 @@ class TestOptions(BaseOptions):
         #parser.add_argument('--no_encode', action='store_true', help='do not produce encoded inputs')
         #parser.add_argument('--sync', action='store_true', help='use the same latent code for different inputs')
         parser.add_argument('--eval', action='store_true', help='use eval mode during test time.')
-        parser.add_argument('--is_decoder', action='store_true', help='use for decoder')
         parser.add_argument('--input_path', type=str, help='input path')
         parser.add_argument('--output_path', type=str, help='output path')
         parser.add_argument('--z0', type=str, help='input path of first latent code')

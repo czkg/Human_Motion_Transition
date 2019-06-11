@@ -308,13 +308,13 @@ class VAE(nn.Module):
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
-        return mu + eps * std
+        z = torch.tanh(mu + eps * std)
+        return z
 
     def decoder(self, z):
         h4 = F.leaky_relu(self.fc5(z))
         h5 = F.leaky_relu(self.fc6(h4))
         h6 = F.leaky_relu(self.fc7(h5))
-        #return self.fc8(h6)
         return torch.sigmoid(self.fc8(h6))
 
 
@@ -432,7 +432,7 @@ class GANLoss(nn.Module):
                     loss = prediction.mean()
             all_losses.append(loss)
         total_loss = sum(all_losses)
-        return total_loss, all_losses
+        return total_loss
 
 
 def cal_gradient_penalty(netD, real_data, fake_data, device, type='mixed', constant=1.0, lambda_gp=10.0):

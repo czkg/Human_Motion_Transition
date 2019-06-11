@@ -15,4 +15,4 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/test.py \
 	--epoch 20 \
 	--input_path ../dataset/Human3.6m/heatmaps/S1/Eating \
 	--output_path ../res/vae \
-	--path_length 15
+	--path_length 10

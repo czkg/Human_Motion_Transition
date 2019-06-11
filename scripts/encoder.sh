@@ -1,7 +1,7 @@
 set -ex
 GPU_ID=0
 #command
-CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/generate_latent.py \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/encoder.py \
 	--dataroot ../dataset/Human3.6m/heatmaps \
 	--name vae \
 	--model vae \

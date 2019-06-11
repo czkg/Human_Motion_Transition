@@ -9,6 +9,7 @@ from keras.layers import Dense, Input, LeakyReLU
 import scipy.io
 import os
 from glob import glob
+from keras import backend as k
 
 """
 along the lines of 
@@ -25,6 +26,7 @@ class RiemannianMetric(object):
         self.x = x
         self.z = z
         self.session = session
+
 
     def create_tf_graph(self):
         """
@@ -160,7 +162,7 @@ def main():
     m.add(Dense(pca_dim, name = 'fc7'))
     m.add(LeakyReLU(alpha = 0.01))
     m.add(Dense(x_dim, activation = 'sigmoid', name = 'fc8'))
-    #m.load_weights('../dataset/Human3.6m/vae_weights_bias.h5')
+    m.load_weights('../dataset/Human3.6m/vae_weights_bias.h5')
 
     #read z0 and z1
     s_z0 = z0.split('/')[-3]
@@ -200,11 +202,12 @@ def main():
     print('predict model ...')
     z = np.asarray(z)
     x = m.predict(z)
-    print(z,'---')
 
 
     session = tf.Session()
+    #session = k.get_session()
     session.run(tf.global_variables_initializer())
+    print(session.run(m.input[0]), '---')
 
     print('create riemannian metric ...')
     rmetric = RiemannianMetric(x=m.output, z=m.input, session=session)

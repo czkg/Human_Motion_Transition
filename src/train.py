@@ -18,7 +18,7 @@ if __name__ == '__main__':
 	visualizer = Visualizer(opt)       # create a visualizer the dispaly/save intermediate results
 
 
-	# outer loop fro different epochs
+	# outer loop for different epochs
 	for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
 		epoch_start_time = time.time()     # timer for entire epoch
 		iter_data_time = time.time()       # timer for data loading iteration

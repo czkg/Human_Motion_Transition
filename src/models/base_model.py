@@ -132,6 +132,9 @@ class BaseModel(ABC):
             scheduler.step()
         lr = self.optimizers[0].param_groups[0]['lr']
         print('learning rate = %.7f' % lr)
+        if len(self.optimizers) > 1:
+            lr_d = self.optimizers[1].param_groups[0]['lr']
+            print('learning rate (discriminator) = %.7f' % lr_d)
 
     # def get_current_visuals(self):
     #     """Return visualization images. train.py will display these images with visdom, and save the images to a HTML"""

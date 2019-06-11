@@ -17,7 +17,7 @@ class BaseOptions():
         It also gathers additional options defined in <modify_commandline_options> functions in both dataset class and model class.
         """
         parser.add_argument('--dataroot', type=str, help='path to data')
-        parser.add_argument('--batch_size', type=int, default=32, help='input batch size')
+        parser.add_argument('--batch_size', type=int, default=2, help='input batch size')
         parser.add_argument('--input_latent', type=int, default=512, help='size of single input latant data')
         parser.add_argument('--output_latent', type=int, default=512, help='size of single output latent data')
         parser.add_argument('--z_size', type=int, default=0, help='#latent vector')
@@ -33,8 +33,9 @@ class BaseOptions():
         parser.add_argument('--use_dropout', action='store_true', help='use dropout for the generator')
         parser.add_argument('--max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
         parser.add_argument('--a_mode', type=str, default='ones',help='zeros|ones|linear|geodesic; the method to fill in the intermediate frames between head and tail')
-        parser.add_argument('--path_length', type=int, default=15, help='the length of the path')
+        parser.add_argument('--path_length', type=int, default=10, help='the length of the path')
         parser.add_argument('--key_frames', '--list', nargs='+', type=int, help='the key frames in one path')
+        parser.add_argument('--is_decoder', action='store_true', help='use for decoder')
 
         # model parameters
         parser.add_argument('--norm', type=str, default='none', help='instance normalization or batch normalization')

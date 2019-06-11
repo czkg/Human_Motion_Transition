@@ -52,6 +52,13 @@ class PathGANModel(BaseModel):
         self.input_size = opt.input_latent * opt.path_length
         self.output_size = opt.output_latent * opt.path_length
         self.z_size = opt.z_size
+        self.masks = []
+
+        #define mask
+        for i in range(opt.path_length):
+            mask = torch.zeros(self.input_size).float().to(self.device)
+            mask[i * opt.input_latent : (i + 1) * opt.input_latent] = 1.0
+            self.masks.append(mask)
 
         # define networks (both generator and discriminator)
         self.netG = networks.define_G(self.input_size, self.output_size, self.z_size, num_downs=opt.num_downs,
@@ -71,7 +78,7 @@ class PathGANModel(BaseModel):
             self.optimizer_G = torch.optim.Adam(
                 self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D = torch.optim.Adam(
-                self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
+                self.netD.parameters(), lr=opt.lr_d, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
 
@@ -114,11 +121,11 @@ class PathGANModel(BaseModel):
         # we use conditional GANs; we need to feed both input and output to the discriminator
         fake_AB = torch.cat((self.real_A, self.fake_B), 1)
         pred_fake = self.netD(fake_AB.detach())
-        self.loss_D_fake, _ = self.criterionGAN(pred_fake, False)
+        self.loss_D_fake = self.criterionGAN(pred_fake, False) * self.opt.lambda_GAN
         # Real
         real_AB = torch.cat((self.real_A, self.real_B), 1)
         pred_real = self.netD(real_AB)
-        self.loss_D_real, _ = self.criterionGAN(pred_real, True)
+        self.loss_D_real = self.criterionGAN(pred_real, True) * self.opt.lambda_GAN
         # combine loss and calculate gradients
         self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
         self.loss_D.backward()
@@ -129,10 +136,12 @@ class PathGANModel(BaseModel):
         # First, G(A) should fake the discriminator
         fake_AB = torch.cat((self.real_A, self.fake_B), 1)
         pred_fake = self.netD(fake_AB)
-        self.loss_G_GAN, _ = self.criterionGAN(pred_fake, True)
+        self.loss_G_GAN = self.criterionGAN(pred_fake, True) * self.opt.lambda_GAN
         # Second, G(A) = B
-        self.loss_G_L1 = self.criterionL1(
-            self.fake_B, self.real_B) * self.opt.lambda_L1
+        self.loss_G_L1 = torch.tensor(0.0).to(self.device)
+        for i in range(len(self.masks)):
+            self.loss_G_L1 += self.criterionL1(self.fake_B * self.masks[i], self.real_B * self.masks[i])
+        self.loss_G_L1 *= self.opt.lambda_L1
         # combine loss and calculate gradients
         self.loss_G = self.loss_G_GAN + self.loss_G_L1
         self.loss_G.backward()
