@@ -308,7 +308,7 @@ class VAE(nn.Module):
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
-        z = torch.tanh(mu + eps * std)
+        z = torch.sigmoid(mu + eps * std)
         return z
 
     def decoder(self, z):
@@ -555,7 +555,7 @@ class UnetBlock(nn.Module):
         if outermost:
             uplinear = [nn.Linear(inner_size * 2, outer_size)]
             down = downlinear
-            up = [uprelu] + uplinear + [nn.Tanh()]
+            up = [uprelu] + uplinear + [nn.Sigmoid()]
             model = down + [submodule] + up
         elif innermost:
             uplinear = [nn.Linear(inner_size, outer_size)]
@@ -733,7 +733,7 @@ class UnetBlock_with_z(nn.Module):
         if outermost:
             uplinear = [nn.Linear(inner_size * 2, outer_size)]
             down = downlinear
-            up = [uprelu] + uplinear + [nn.Tanh()]
+            up = [uprelu] + uplinear + [nn.Sigmoid()]
         elif innermost:
             uplinear = [nn.Linear(inner_size, outer_size)]
             down = [downrelu] + downlinear

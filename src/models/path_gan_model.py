@@ -1,6 +1,7 @@
 import torch
 from .base_model import BaseModel
 from . import networks
+import numpy as np
 
 
 class PathGANModel(BaseModel):
@@ -51,8 +52,11 @@ class PathGANModel(BaseModel):
 
         self.input_size = opt.input_latent * opt.path_length
         self.output_size = opt.output_latent * opt.path_length
+        self.latent_size = opt.input_latent
         self.z_size = opt.z_size
         self.masks = []
+
+        #pretrained decoder
 
         #define mask
         for i in range(opt.path_length):
@@ -73,7 +77,7 @@ class PathGANModel(BaseModel):
         if self.isTrain:
             # define loss functions
             self.criterionGAN = networks.GANLoss(opt.gan_mode).to(self.device)
-            self.criterionL1 = torch.nn.L1Loss()
+            self.criterionL1 = torch.nn.BCELoss(reduction = 'sum')
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
             self.optimizer_G = torch.optim.Adam(
                 self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -111,21 +115,36 @@ class PathGANModel(BaseModel):
 
     def inference(self):
         with torch.no_grad():
-            fake_B = self.netG(self.real_A)
-            return fake_B
+            if self.z_size > 0:
+                self.z_random = self.get_z_random(self.real_A.size(0), self.z_size)
+                self.fake_B = self.netG(self.real_A, self.z_random)
+            else:
+                self.fake_B = self.netG(self.real_A)
+            return self.fake_B
 
     def backward_D(self):
         """ Calculate GAN loss for the discriminator
         """
+        prob = np.random.random(1)[0]
         # Fake; stop backprop to the generator by detaching fake_B
         # we use conditional GANs; we need to feed both input and output to the discriminator
         fake_AB = torch.cat((self.real_A, self.fake_B), 1)
+        #shape_f_ab = fake_AB.shape
+        #fake_AB += torch.rand(shape_f_ab).to(self.device) * 0.02
         pred_fake = self.netD(fake_AB.detach())
-        self.loss_D_fake = self.criterionGAN(pred_fake, False) * self.opt.lambda_GAN
+        if prob < 0.9:
+            self.loss_D_fake = self.criterionGAN(pred_fake, False) * self.opt.lambda_GAN
+        else:
+            self.loss_D_fake = self.criterionGAN(pred_fake, True) * self.opt.lambda_GAN
         # Real
         real_AB = torch.cat((self.real_A, self.real_B), 1)
+        #shape_r_ab = real_AB.shape
+        #real_AB += torch.rand(shape_r_ab).to(self.device) * 0.02
         pred_real = self.netD(real_AB)
-        self.loss_D_real = self.criterionGAN(pred_real, True) * self.opt.lambda_GAN
+        if prob < 0.9:
+            self.loss_D_real = self.criterionGAN(pred_real, True) * self.opt.lambda_GAN
+        else:
+            self.loss_D_real = self.criterionGAN(pred_real, False) * self.opt.lambda_GAN
         # combine loss and calculate gradients
         self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
         self.loss_D.backward()
@@ -138,12 +157,23 @@ class PathGANModel(BaseModel):
         pred_fake = self.netD(fake_AB)
         self.loss_G_GAN = self.criterionGAN(pred_fake, True) * self.opt.lambda_GAN
         # Second, G(A) = B
-        self.loss_G_L1 = torch.tensor(0.0).to(self.device)
-        for i in range(len(self.masks)):
-            self.loss_G_L1 += self.criterionL1(self.fake_B * self.masks[i], self.real_B * self.masks[i])
-        self.loss_G_L1 *= self.opt.lambda_L1
+        # self.loss_G_L1_0 = self.criterionL1(self.fake_B[:,:self.latent_size],self.real_B[:,:self.latent_size])*self.opt.lambda_L1
+        # self.loss_G_L1_1 = self.criterionL1(self.fake_B[:,self.latent_size:2*self.latent_size], self.real_B[:,self.latent_size:2*self.latent_size])*self.opt.lambda_L1_inter
+        # self.loss_G_L1_2 = self.criterionL1(self.fake_B[:,2*self.latent_size:3*self.latent_size], self.real_B[:,2*self.latent_size:3*self.latent_size])*self.opt.lambda_L1_inter
+        # self.loss_G_L1_3 = self.criterionL1(self.fake_B[:,3*self.latent_size:4*self.latent_size], self.real_B[:,3*self.latent_size:4*self.latent_size])*self.opt.lambda_L1_inter
+        # self.loss_G_L1_4 = self.criterionL1(self.fake_B[:,4*self.latent_size:5*self.latent_size], self.real_B[:,4*self.latent_size:5*self.latent_size])*self.opt.lambda_L1_inter
+        # self.loss_G_L1_5 = self.criterionL1(self.fake_B[:,5*self.latent_size:6*self.latent_size], self.real_B[:,5*self.latent_size:6*self.latent_size])*self.opt.lambda_L1_inter
+        # self.loss_G_L1_6 = self.criterionL1(self.fake_B[:,6*self.latent_size:7*self.latent_size], self.real_B[:,6*self.latent_size:7*self.latent_size])*self.opt.lambda_L1_inter
+        # self.loss_G_L1_7 = self.criterionL1(self.fake_B[:,7*self.latent_size:8*self.latent_size], self.real_B[:,7*self.latent_size:8*self.latent_size])*self.opt.lambda_L1_inter
+        # self.loss_G_L1_8 = self.criterionL1(self.fake_B[:,8*self.latent_size:9*self.latent_size], self.real_B[:,8*self.latent_size:9*self.latent_size])*self.opt.lambda_L1_inter
+        # self.loss_G_L1_9 = self.criterionL1(self.fake_B[:,9*self.latent_size:], self.real_B[:,9*self.latent_size:])*self.opt.lambda_L1
+        # self.loss_G_L1 = torch.tensor(0.0).to(self.device)
+        # for i in range(len(self.masks)):
+        #     self.loss_G_L1 += self.criterionL1(self.fake_B * self.masks[i], self.real_B * self.masks[i])
+        # self.loss_G_L1 *= self.opt.lambda_L1
+        self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_L1
         # combine loss and calculate gradients
-        self.loss_G = self.loss_G_GAN + self.loss_G_L1
+        self.loss_G = self.loss_G_GAN + self.loss_G_L1#_0 + self.loss_G_L1_1 + self.loss_G_L1_2 + self.loss_G_L1_3 + self.loss_G_L1_4 + self.loss_G_L1_5 + self.loss_G_L1_6 + self.loss_G_L1_7 + self.loss_G_L1_8 + self.loss_G_L1_9
         self.loss_G.backward()
 
     def update_G(self):

@@ -12,7 +12,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/decoder.py \
 	--init_type normal \
 	--init_gain 0.8 \
 	--batch_size 512 \
-	--epoch 20 \
+	--epoch latest \
 	--input_path ../res/gan \
 	--output_path ../res/gan/heatmaps \
 	--path_length 10 \
