@@ -2,6 +2,7 @@ import torch
 from .base_model import BaseModel
 from . import networks
 import numpy as np
+import os
 
 
 class PathGANModel(BaseModel):
@@ -41,7 +42,7 @@ class PathGANModel(BaseModel):
         """
         BaseModel.__init__(self, opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-        self.loss_names = ['G_GAN', 'G_L1', 'D_real', 'D_fake']
+        self.loss_names = ['G_GAN', 'G_BCE', 'G2_BCE', 'D_real', 'D_fake']
         # specify the paths you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
         self.visual_names = ['real_A', 'fake_B', 'real_B']
         # specify the models you want to save to the disk. The training /test scripts will call <BaseMoel.save_networks> and <BaseModel.load_networks>
@@ -54,15 +55,21 @@ class PathGANModel(BaseModel):
         self.output_size = opt.output_latent * opt.path_length
         self.latent_size = opt.input_latent
         self.z_size = opt.z_size
-        self.masks = []
 
         #pretrained decoder
+        x_dim = opt.dim_heatmap ** 2 * opt.num_joints + opt.dim_heatmap * opt.num_joints
+        self.netVAE = networks.VAE(x_dim, opt.z_dim, opt.pca_dim, True)
+        self.netVAE = networks.init_net(self.netVAE, init_type = opt.init_type, init_gain = opt.init_gain, gpu_ids = opt.gpu_ids)
 
-        #define mask
-        for i in range(opt.path_length):
-            mask = torch.zeros(self.input_size).float().to(self.device)
-            mask[i * opt.input_latent : (i + 1) * opt.input_latent] = 1.0
-            self.masks.append(mask)
+        load_filename = '%s_net_%s.pth' % (opt.epoch2, 'VAE')
+        load_path = os.path.join(opt.checkpoints_dir, 'vae', load_filename)
+        if isinstance(self.netVAE, torch.nn.DataParallel):
+            self.netVAE = self.netVAE.module
+        state_dict = torch.load(load_path, map_location=str(self.device))
+        self.netVAE.load_state_dict(state_dict)
+        for param in self.netVAE.parameters():
+            param.requires_grad = False
+        
 
         # define networks (both generator and discriminator)
         self.netG = networks.define_G(self.input_size, self.output_size, self.z_size, num_downs=opt.num_downs,
@@ -77,7 +84,7 @@ class PathGANModel(BaseModel):
         if self.isTrain:
             # define loss functions
             self.criterionGAN = networks.GANLoss(opt.gan_mode).to(self.device)
-            self.criterionL1 = torch.nn.BCELoss(reduction = 'sum')
+            self.criterionBCE = torch.nn.BCELoss(reduction = 'sum')
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
             self.optimizer_G = torch.optim.Adam(
                 self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -157,23 +164,13 @@ class PathGANModel(BaseModel):
         pred_fake = self.netD(fake_AB)
         self.loss_G_GAN = self.criterionGAN(pred_fake, True) * self.opt.lambda_GAN
         # Second, G(A) = B
-        # self.loss_G_L1_0 = self.criterionL1(self.fake_B[:,:self.latent_size],self.real_B[:,:self.latent_size])*self.opt.lambda_L1
-        # self.loss_G_L1_1 = self.criterionL1(self.fake_B[:,self.latent_size:2*self.latent_size], self.real_B[:,self.latent_size:2*self.latent_size])*self.opt.lambda_L1_inter
-        # self.loss_G_L1_2 = self.criterionL1(self.fake_B[:,2*self.latent_size:3*self.latent_size], self.real_B[:,2*self.latent_size:3*self.latent_size])*self.opt.lambda_L1_inter
-        # self.loss_G_L1_3 = self.criterionL1(self.fake_B[:,3*self.latent_size:4*self.latent_size], self.real_B[:,3*self.latent_size:4*self.latent_size])*self.opt.lambda_L1_inter
-        # self.loss_G_L1_4 = self.criterionL1(self.fake_B[:,4*self.latent_size:5*self.latent_size], self.real_B[:,4*self.latent_size:5*self.latent_size])*self.opt.lambda_L1_inter
-        # self.loss_G_L1_5 = self.criterionL1(self.fake_B[:,5*self.latent_size:6*self.latent_size], self.real_B[:,5*self.latent_size:6*self.latent_size])*self.opt.lambda_L1_inter
-        # self.loss_G_L1_6 = self.criterionL1(self.fake_B[:,6*self.latent_size:7*self.latent_size], self.real_B[:,6*self.latent_size:7*self.latent_size])*self.opt.lambda_L1_inter
-        # self.loss_G_L1_7 = self.criterionL1(self.fake_B[:,7*self.latent_size:8*self.latent_size], self.real_B[:,7*self.latent_size:8*self.latent_size])*self.opt.lambda_L1_inter
-        # self.loss_G_L1_8 = self.criterionL1(self.fake_B[:,8*self.latent_size:9*self.latent_size], self.real_B[:,8*self.latent_size:9*self.latent_size])*self.opt.lambda_L1_inter
-        # self.loss_G_L1_9 = self.criterionL1(self.fake_B[:,9*self.latent_size:], self.real_B[:,9*self.latent_size:])*self.opt.lambda_L1
-        # self.loss_G_L1 = torch.tensor(0.0).to(self.device)
-        # for i in range(len(self.masks)):
-        #     self.loss_G_L1 += self.criterionL1(self.fake_B * self.masks[i], self.real_B * self.masks[i])
-        # self.loss_G_L1 *= self.opt.lambda_L1
-        self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_L1
+        self.loss_G_BCE = self.criterionBCE(self.fake_B, self.real_B) * self.opt.lambda_BCE
+        # Third, use decoder
+        fake_B_decoded = self.netVAE(self.fake_B.view(self.fake_B.shape[0]*self.opt.path_length, self.latent_size))
+        real_B_decoded = self.netVAE(self.real_B.view(self.fake_B.shape[0]*self.opt.path_length, self.latent_size))
+        self.loss_G2_BCE = self.criterionBCE(fake_B_decoded, real_B_decoded) * self.opt.lambda_BCE_decoder
         # combine loss and calculate gradients
-        self.loss_G = self.loss_G_GAN + self.loss_G_L1#_0 + self.loss_G_L1_1 + self.loss_G_L1_2 + self.loss_G_L1_3 + self.loss_G_L1_4 + self.loss_G_L1_5 + self.loss_G_L1_6 + self.loss_G_L1_7 + self.loss_G_L1_8 + self.loss_G_L1_9
+        self.loss_G = self.loss_G_GAN + self.loss_G_BCE + self.loss_G2_BCE
         self.loss_G.backward()
 
     def update_G(self):

@@ -27,6 +27,7 @@ class BaseOptions():
         parser.add_argument('--model', type=str, default='path_gan', help='chooses which model to use. bicycle,, ...')
         parser.add_argument('--direction', type=str, default='AtoB', help='AtoB or BtoA')
         parser.add_argument('--epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
+        parser.add_argument('--epoch2', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
         parser.add_argument('--num_threads', default=4, type=int, help='# sthreads for loading data')
         parser.add_argument('--checkpoints_dir', type=str, default='../results', help='models are saved here')
         parser.add_argument('--serial_batches', action='store_true', help='if true, takes inputs in order to make batches, otherwise takes them randomly')

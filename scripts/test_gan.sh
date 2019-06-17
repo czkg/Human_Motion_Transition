@@ -7,12 +7,17 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/test.py \
 	--checkpoints_dir ../results \
 	--input_latent 512 \
 	--output_latent 512 \
+	--dim_heatmap 64 \
+	--sigma 0.05 \
+	--z_dim 512 \
+	--pca_dim 2048 \
 	--init_type kaiming \
 	--init_gain 0.8 \
 	--batch_size 32 \
-	--epoch latest \
+	--epoch 90 \
+	--epoch2 latest \
 	--z0 ../dataset/Human3.6m/latent_nth/S5/Sitting/216.mat \
-	--z1 ../dataset/Human3.6m/latent_nth/S5/Sitting/286.mat \
+	--z1 ../dataset/Human3.6m/latent_nth/S5/Sitting/261.mat \
 	--output_path ../res/gan \
 	--path_length 10 \
 	--a_mode ones \

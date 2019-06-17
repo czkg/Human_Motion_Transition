@@ -9,10 +9,14 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--input_latent 512 \
 	--output_latent 512 \
 	--checkpoints_dir ../results \
-	--niter 15 \
-	--niter_decay 75 \
-	--lr 0.0002 \
-	--lr_d 0.000001 \
+	--niter 50 \
+	--niter_decay 150 \
+	--dim_heatmap 64 \
+	--sigma 0.05 \
+	--z_dim 512 \
+	--pca_dim 2048 \
+	--lr 0.000001 \
+	--lr_d 0.0000001 \
 	--beta1 0.9 \
 	--init_type kaiming \
 	--init_gain 0.8 \
@@ -22,13 +26,16 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--a_mode ones \
 	--gan_mode lsgan \
 	--norm instance \
-	--lambda_L1 1000 \
-	--lambda_L1_inter 1000 \
+	--lambda_BCE 1000 \
+	--lambda_BCE_decoder 1000 \
 	--lambda_GAN 1 \
 	--where_add all \
 	--z_size 32 \
 	--num_downs 7 \
 	--d_layers 3 \
 	--nl lrelu \
+	--epoch2 latest \
 	--no_html \
+	--continue_train \
+	--epoch 0 \
 	--use_dropout
