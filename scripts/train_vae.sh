@@ -8,12 +8,12 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--model vae \
 	--checkpoints_dir ../results \
 	--niter 50 \
-	--niter_decay 30 \
+	--niter_decay 50 \
 	--dim_heatmap 64 \
 	--sigma 0.05 \
 	--z_dim 512 \
 	--pca_dim 2048 \
-	--lr 0.00005 \
+	--lr 0.000001 \
 	--beta1 0.9 \
 	--init_type normal \
 	--init_gain 0.8 \

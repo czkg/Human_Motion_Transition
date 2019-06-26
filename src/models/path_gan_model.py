@@ -167,7 +167,7 @@ class PathGANModel(BaseModel):
         self.loss_G_BCE = self.criterionBCE(self.fake_B, self.real_B) * self.opt.lambda_BCE
         # Third, use decoder
         fake_B_decoded = self.netVAE(self.fake_B.view(self.fake_B.shape[0]*self.opt.path_length, self.latent_size))
-        real_B_decoded = self.netVAE(self.real_B.view(self.fake_B.shape[0]*self.opt.path_length, self.latent_size))
+        real_B_decoded = self.netVAE(self.real_B.view(self.real_B.shape[0]*self.opt.path_length, self.latent_size))
         self.loss_G2_BCE = self.criterionBCE(fake_B_decoded, real_B_decoded) * self.opt.lambda_BCE_decoder
         # combine loss and calculate gradients
         self.loss_G = self.loss_G_GAN + self.loss_G_BCE + self.loss_G2_BCE
