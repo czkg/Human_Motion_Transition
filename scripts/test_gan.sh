@@ -15,7 +15,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/test.py \
 	--init_gain 0.8 \
 	--batch_size 32 \
 	--epoch 100 \
-	--epoch2 latest \
+	--epoch2 0 \
 	--z0 ../dataset/Human3.6m/latent_nth/S5/Sitting/216.mat \
 	--z1 ../dataset/Human3.6m/latent_nth/S5/Sitting/261.mat \
 	--output_path ../res/gan \
