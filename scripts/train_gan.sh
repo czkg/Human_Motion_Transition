@@ -1,6 +1,7 @@
 set -ex
 GPU_ID=0
 # command
+# lr 1e-5/2e-4
 CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--dataroot ../dataset/Human3.6m/latent_path_new \
 	--dataset_mode aligned_path \
@@ -9,14 +10,14 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--input_latent 512 \
 	--output_latent 512 \
 	--checkpoints_dir ../results \
-	--niter 30 \
-	--niter_decay 70 \
+	--niter 50 \
+	--niter_decay 100 \
 	--dim_heatmap 64 \
 	--sigma 0.05 \
 	--z_dim 512 \
 	--pca_dim 2048 \
-	--lr 0.0002 \
-	--lr_d 0.000001 \
+	--lr 2e-4 \
+	--lr_d 1e-6 \
 	--beta1 0.9 \
 	--init_type kaiming \
 	--init_gain 0.8 \
@@ -27,7 +28,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--gan_mode lsgan \
 	--norm instance \
 	--lambda_BCE 1000 \
-	--lambda_BCE_decoder 1000 \
+	--lambda_BCE_decoder 0 \
 	--lambda_GAN 1 \
 	--where_add all \
 	--z_size 32 \
