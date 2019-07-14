@@ -9,9 +9,11 @@ from shutil import rmtree
 import torch
 import numpy as np
 from utils.utils import slerp
+import time
 
 
 if __name__ =='__main__':
+	start_time = time.time()
 	# options
 	opt = TestOptions().parse()
 	opt.num_threads = 1    # test code only support num_threads = 1
@@ -85,5 +87,6 @@ if __name__ =='__main__':
 	else:
 		raise('unrecognized mode')
 
-
+	end_time = time.time()
+	print('Time:', end_time - start_time)
 	print('Done!')

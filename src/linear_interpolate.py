@@ -6,6 +6,7 @@ import torch
 import scipy.io
 from shutil import rmtree
 from models import create_model
+import time
 
 p0 = '../dataset/Human3.6m/latent_nth/S5/Sitting/216.mat'
 p1 = '../dataset/Human3.6m/latent_nth/S5/Sitting/261.mat'
@@ -22,6 +23,7 @@ def slerp(p0, p1, t):
 
 
 if __name__ == '__main__':
+	start_time = time.time()
 	opt = TestOptions().parse()
 	opt.num_threads = 1
 	opt.batch_size = 1
@@ -50,4 +52,6 @@ if __name__ == '__main__':
 		filename = os.path.join(output_path, filename)
 		scipy.io.savemat(filename, {'heatmap': x})
 
+	end_time = time.time()
 	print('Done!')
+	print('Time:', end_time - start_time)
