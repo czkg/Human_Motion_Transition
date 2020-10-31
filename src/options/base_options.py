@@ -17,13 +17,14 @@ class BaseOptions():
         It also gathers additional options defined in <modify_commandline_options> functions in both dataset class and model class.
         """
         parser.add_argument('--dataroot', type=str, help='path to data')
+        parser.add_argument('--randomroot', type=str, help='path to random data')
         parser.add_argument('--batch_size', type=int, default=2, help='input batch size')
         parser.add_argument('--input_latent', type=int, default=512, help='size of single input latant data')
         parser.add_argument('--output_latent', type=int, default=512, help='size of single output latent data')
         parser.add_argument('--z_size', type=int, default=0, help='#latent vector')
         parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2, -1 for CPU mode')
         parser.add_argument('--name', type=str, default='', help='name of the experiment. It decides where to store samples and models')
-        parser.add_argument('--dataset_mode', type=str, default='aligned_path', help='aligned,single')
+        parser.add_argument('--dataset_mode', type=str, default='aligned_path', help='aligned_path, random_path')
         parser.add_argument('--model', type=str, default='path_gan', help='chooses which model to use. bicycle,, ...')
         parser.add_argument('--direction', type=str, default='AtoB', help='AtoB or BtoA')
         parser.add_argument('--epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')

@@ -8,8 +8,8 @@ from shutil import rmtree
 from models import create_model
 import time
 
-p0 = '../dataset/Human3.6m/latent_nth/S5/Sitting/216.mat'
-p1 = '../dataset/Human3.6m/latent_nth/S5/Sitting/261.mat'
+p0 = '../dataset/Human3.6m/latent_nth/S5/Smoking/131.mat'
+p1 = '../dataset/Human3.6m/latent_nth/S5/Smoking/176.mat'
 output_path = '../res/linear/heatmaps/'
 
 def slerp(p0, p1, t):
@@ -43,6 +43,7 @@ if __name__ == '__main__':
 	d1 = scipy.io.loadmat(p1)['latent'][0]
 
 	data = np.array([slerp(d0, d1, t) for t in np.linspace(0, 1, 10)])
+	end_time = time.time()
 
 	for i in range(10):
 		z = torch.tensor(data[i])
@@ -52,6 +53,5 @@ if __name__ == '__main__':
 		filename = os.path.join(output_path, filename)
 		scipy.io.savemat(filename, {'heatmap': x})
 
-	end_time = time.time()
 	print('Done!')
 	print('Time:', end_time - start_time)

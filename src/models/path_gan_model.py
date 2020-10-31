@@ -3,6 +3,8 @@ from .base_model import BaseModel
 from . import networks
 import numpy as np
 import os
+from braniac import nn
+from braniac.format import SourceFactory
 
 
 class PathGANModel(BaseModel):
@@ -42,7 +44,7 @@ class PathGANModel(BaseModel):
         """
         BaseModel.__init__(self, opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-        self.loss_names = ['G_GAN', 'G_BCE', 'G2_BCE', 'D_real', 'D_fake']
+        self.loss_names = ['G_GAN', 'G_BCE', 'G2_BCE', 'G_keyposes', 'G_consistency', 'G2_consistency', 'G_bone', 'D_real', 'D_fake']
         # specify the paths you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
         self.visual_names = ['real_A', 'fake_B', 'real_B']
         # specify the models you want to save to the disk. The training /test scripts will call <BaseMoel.save_networks> and <BaseModel.load_networks>
@@ -69,6 +71,10 @@ class PathGANModel(BaseModel):
         self.netVAE.load_state_dict(state_dict)
         for param in self.netVAE.parameters():
             param.requires_grad = False
+
+        # body_inf
+        source = SourceFactory('human36m')
+        self.body_inf = source.create_body()
         
 
         # define networks (both generator and discriminator)
@@ -76,7 +82,7 @@ class PathGANModel(BaseModel):
                                       norm=opt.norm, nl=opt.nl, use_dropout=opt.use_dropout, init_type=opt.init_type, init_gain=opt.init_gain,
                                       gpu_ids=self.gpu_ids, where_add=opt.where_add)
 
-        # define a discriminator. Conditional GANs need to take both input and putput. Therefore, #channels for D is input_nc + output_nc
+        # define a discriminator. Conditional GANs need to take both input and output. Therefore, #channels for D is input_nc + output_nc
         if self.isTrain:
             self.netD = networks.define_D(self.input_size + self.output_size, opt.output_latent, opt.d_layers, norm=opt.norm, nl=opt.nl,
                                           init_type=opt.init_type, init_gain=opt.init_gain, gpu_ids=self.gpu_ids)
@@ -85,6 +91,10 @@ class PathGANModel(BaseModel):
             # define loss functions
             self.criterionGAN = networks.GANLoss(opt.gan_mode).to(self.device)
             self.criterionBCE = torch.nn.BCELoss(reduction = 'sum')
+            self.criterionConsistency = networks.ConsistencyLoss().to(self.device)
+            self.criterionConsistency_poses = networks.ConsistencyLoss_poses().to(self.device)
+            self.criterionBone = networks.BoneLoss().to(self.device)
+            self.criterionKeyposes = networks.KeyposeLoss().to(self.device)
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
             self.optimizer_G = torch.optim.Adam(
                 self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -169,8 +179,17 @@ class PathGANModel(BaseModel):
         fake_B_decoded = self.netVAE(self.fake_B.view(self.fake_B.shape[0]*self.opt.path_length, self.latent_size))
         real_B_decoded = self.netVAE(self.real_B.view(self.real_B.shape[0]*self.opt.path_length, self.latent_size))
         self.loss_G2_BCE = self.criterionBCE(fake_B_decoded, real_B_decoded) * self.opt.lambda_BCE_decoder
+        # Fourth, use consistency loss function
+        self.loss_G_consistency = self.criterionConsistency(self.fake_B, self.opt.path_length)*self.opt.lambda_consistency
+        # Fifth, use bone loss function
+        fake_B_poses = networks.heatmap2pose(fake_B_decoded)
+        real_B_poses = networks.heatmap2pose(real_B_decoded)
+        self.loss_G_bone = self.criterionBone(fake_B_poses, real_B_poses, self.body_inf, self.opt.path_length)*self.opt.lambda_bone
+        self.loss_G2_consistency = self.criterionConsistency_poses(fake_B_poses, self.opt.path_length)*self.opt.lambda_consistency
+        # Sixth, use keypoints loss function
+        self.loss_G_keyposes = self.criterionKeyposes(self.fake_B, self.real_B, self.opt.path_length)*self.opt.lambda_keyposes
         # combine loss and calculate gradients
-        self.loss_G = self.loss_G_GAN + self.loss_G_BCE + self.loss_G2_BCE
+        self.loss_G = self.loss_G_GAN + self.loss_G_BCE + self.loss_G2_BCE + self.loss_G_consistency + self.loss_G_bone
         self.loss_G.backward()
 
     def update_G(self):

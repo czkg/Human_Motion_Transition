@@ -182,6 +182,29 @@ def define_E(input_size, output_size, ndf, netE,
     return init_net(net, init_type, init_gain, gpu_ids)
 
 
+def heatmap2pose(heatmap):
+    dim_heatmap = 64
+    n_joints = 17
+    dim_xy = dim_heatmap ** 2
+    dim_z = dim_heatmap
+    #dim = dim_xy + dim_heatmap
+
+    l = torch.linspace(-1, 1, dim_heatmap)
+    data = heatmap.view(heatmap.shape[0], n_joints, -1)
+    data_xy, data_z = torch.split(data, [dim_xy, dim_z], dim=2)
+
+    xy_max = torch.argmax(data_xy, dim=-1)
+    x_max = xy_max // dim_heatmap
+    y_max = xy_max % dim_heatmap
+    z_max = torch.argmax(data_z, dim=-1)
+    x = l[x_max]
+    y = l[y_max]
+    z = l[z_max]
+
+    pose = torch.stack((x, y, z), dim=-1)
+    return pose
+
+
 # class D_NLayersMulti(nn.Module):
 #     def __init__(self, input_size, n_layers=3,
 #                  n_neurons=512, num_D=1):
@@ -359,6 +382,122 @@ class RecLoss(nn.Module):
             return torch.mean(diff)
         else:
             return torch.mean(torch.mean(torch.mean(diff, dim=1), dim=2), dim=3)
+
+
+
+class ConsistencyLoss(nn.Module):
+    def __init__(self):
+        super(ConsistencyLoss, self).__init__()
+        self.loss = nn.MSELoss(reduction='sum')
+
+    def __call__(self, outputs, path_length):
+        """Consistency loss call function
+
+        Parameters:
+            outputs:  sequence of generated n latent codes, of shape(b, n, m), b is batch size, n is the length of the path, m is the dimension of one latent code
+        return:
+            total_loss: shape of (b,)
+        """
+        out = outputs.view(outputs.shape[0], path_length, -1)
+        out_prev = out[:,:-1,:]
+        out_next = out[:,1:,:]
+
+        loss = self.loss(out_next, out_prev)
+
+        return loss
+
+class ConsistencyLoss_poses(nn.Module):
+    def __init__(self):
+        super(ConsistencyLoss_poses, self).__init__()
+        self.loss = nn.MSELoss(reduction='sum')
+
+    def __call__(self, outputs, path_length):
+        """Consistency loss call function
+
+        Parameters:
+            outputs:  sequence of generated n latent codes, of shape(b, n, m), b is batch size, n is the length of the path, m is the dimension of one latent code
+        return:
+            total_loss: shape of (b,)
+        """
+        out = outputs.view(outputs.shape[0]//path_length, path_length, -1, 3)
+        out_prev = out[:,:-1,:,:]
+        out_next = out[:,1:,:,:]
+
+        loss = self.loss(out_next, out_prev)
+
+        return loss
+
+class KeyposeLoss(nn.Module):
+    def __init__(self):
+        super(KeyposeLoss, self).__init__()
+        self.loss = torch.nn.MSELoss(reduction='sum')
+
+    def __call__(self, inputs, targets, path_length):
+        """Keypose loss call function
+
+        Parameters:
+            inputs: sequence of generated n latent codes, of shape(b, n, m), b is batch size, m is the dimension of one latent code
+            targets:  sequence of generated n latent codes, of shape(b, n, m), b is batch size, m is the dimension of one latent code
+        """
+        inputs = inputs.view(inputs.shape[0], path_length, -1)
+        targets = targets.view(targets.shape[0], path_length, -1)
+        start_pose_i = inputs[:,0,:]
+        start_pose_t = targets[:,0,:]
+        end_pose_i = inputs[:,-1,:]
+        end_pose_t = targets[:,-1,:]
+
+        start_loss = self.loss(start_pose_i, start_pose_t)
+        end_loss = self.loss(end_pose_i, end_pose_t)
+
+        loss = start_loss + end_loss
+        return loss
+
+
+class BoneLoss(nn.Module):
+    def __init__(self):
+        super(BoneLoss, self).__init__()
+
+    def __call__(self, outputs, inputs, body, path_length):
+        """Bone loss call function, compare the bone size of predicted sequence from start pose in target
+
+        Paramters:
+            outputs:  sequence of n 3D poses, of shape (b, n, m). m is the number of joints.
+            inputs: sequence of n 3D poses, of shape (b, n, m). m is the number of joints.
+        """
+        outputs = outputs.view(outputs.shape[0]//path_length, path_length, outputs.shape[1], -1)
+        inputs = inputs.view(inputs.shape[0]//path_length, path_length, inputs.shape[1], -1)
+        num_of_skeletons = outputs.shape[1]
+        num_of_joints = outputs.shape[2]
+
+        loss = 0.
+        for skeleton_index in range(num_of_skeletons):
+            for bone in body.bones:
+                i = bone[0]
+                j = bone[1]
+
+                x1 = inputs[:,0,i,0]
+                y1 = inputs[:,0,i,1]
+                z1 = inputs[:,0,i,2]
+
+                x2 = inputs[:,0,j,0]
+                y2 = inputs[:,0,j,1]
+                z2 = inputs[:,0,j,2]
+
+                bone_length_ref = torch.sqrt(torch.pow((x2-x1),2) + torch.pow((y2-y1),2) + torch.pow((z2-z1),2))
+
+                x1 = outputs[:,skeleton_index,i,0]
+                y1 = outputs[:,skeleton_index,i,1]
+                z1 = outputs[:,skeleton_index,i,2]
+
+                x2 = outputs[:,skeleton_index,j,0]
+                y2 = outputs[:,skeleton_index,j,1]
+                z2 = outputs[:,skeleton_index,j,2]
+
+                bone_length = torch.sqrt(torch.pow((x2-x1),2) + torch.pow((y2-y1),2) + torch.pow((z2-z1),2))
+
+                loss += torch.sum(torch.abs(bone_length - bone_length_ref))
+
+        return loss
 
 
 # Defines the GAN loss which uses different GANs.
@@ -811,3 +950,237 @@ class E_NLayers(nn.Module):
             outputVar = self.fcVar(conv_flat)
             return output, outputVar
         return output
+
+
+#Define DVBF module
+class VAEDMP(nn.Module):
+    """Define deep variational bayes filters (DVBF) objectives.
+    """
+
+    def __init__(self, x_dim, hidden_dim, u_dim, z_dim, noise_dim, alpha=25.0, beta=25.0/4.0, tau=1.0, dt=0.01):
+        """ Initialize the GANLoss class.
+
+        Parameters:
+            x_dim (int) - - dimension of observation x
+            u_dim (int) - - dimension of control signal u
+            z_dim (int) - - dimension of latent code z
+        """
+        super(VAEDMP, self).__init__()
+        self.x_dim = x_dim
+        self.u_dim = u_dim
+        self.z_dim = z_dim
+        self.noise_dim = noise_dim
+
+        self.alpha = alpha
+        self.beta = beta
+        self.tau = tau
+        self.dt = dt
+
+        # encoder
+        self.fc_en1 = nn.Linear(self.x_dim, self.hidden_dim)
+        self.fc_en2 = nn.Linear(self.hidden_dim, self.hidden_dim)
+        self.fc_en3 = nn.Linear(self.hidden_dim, self.hidden_dim)
+        self.fc_en4 = nn.Linear(self.hidden_dim, self.z_dim)
+
+        # initial enc for noise1
+        self.fc_in1 = nn.Linear(self.z_dim, self.transform_dim)
+        self.fc_in2 = nn.Linear(self.transform_dim, 2*self.noise_dim)
+        # initial enc for z1
+        self.fc_in3 = nn.Linear(self.noise_dim, self.transform_dim)
+        self.fc_in4 = nn.Linear(self.transform_dim, self.z_dim)
+
+        # decoder
+        self.fc_de1 = nn.Linear(self.z_dim, self.hidden_dim)
+        self.fc_de2 = nn.Linear(self.hidden_dim, self.hidden_dim)
+        self.fc_de3 = nn.Linear(self.hidden_dim, self.hidden_dim)
+        self.fc_de4 = nn.Linear(self.hidden_dim, self.x_dim)
+
+        # noise_net
+        self.fc_no1 = nn.Linear(self.x_dim+self.z_dim, self.transform_dim)
+        self.fc_no2 = nn.Linear(self.transform_dim, 2*self.noise_dim)
+        
+        # force_net (use LSTM)
+        self.lstm = nn.LSTM(self.z_dim, self.u_dim)
+
+    def A(self):
+        """Matrix A in transition model
+        """
+        A = np.zeros((2,2))
+        I = np.identity(2)
+
+        A[0][0] = -1 * self.dt * self.alpha * self.beta * (1./self.tau)
+        A[0][1] = -1 * self.dt * self.alpha * (1./self.tau) + 1.
+        A[1][0] = -1 * self.alpha * self.beta * (1./self.tau)
+        A[1][1] = -1 * self.alpha * (1./self.tau)
+
+        A *= self.dt
+
+        return A + I
+
+    def b(self, z_goal, f, eps):
+        """Matrix b in transition model
+        """
+        b = np.ones((2,1))
+        b[0][0] = self.dt
+
+        temp = self.slpha * self.beta * z_goal + f + eps
+        temp *= (self.dt * (1./self.tau))
+
+        return b * temp
+
+    def encoder(self, x):
+        """Encoder network to extract features from inputs X
+        Parameters:
+            x (tensor) -- inputs in observation space
+        """
+        h1 = F.leaky_relu(self.fc_en1(x))
+        h2 = F.leaky_relu(self.fc_en2(h1))
+        h3 = F.leaky_relu(self.fc_en3(h2))
+        dist = F.leaky_relu(self.fc_en4(h3))
+        return dist
+
+    def init_enc(self, x):
+        """Network to generate z1, w1 and z_goal, w_goal from features
+        """
+        h1 = F.leaky_relu(self.fc_in1(x))
+        noise_dist = F.leaky_relu(self.fc_in2(h1))
+        noise = self.sample(noise_dist)
+
+        h2 = F.leaky_relu(self.fc_in3(noise))
+        z = F.leaky_relu(self.fc_in4(h2))
+        return noise_dist, noise, z
+
+
+    def sample(self, dist):
+        """Function to generate samples from distributions
+        """
+        mu, logvar = torch.split(dist, [self.noise_dim, self.noise_dim], dim=1)
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        sample = torch.sigmoid(mu + eps * std)
+        return sample
+
+    def decoder(self, z):
+        """Decoder network to recover x from z
+        """
+        h1 = F.leaky_relu(self.fc_de1(z))
+        h2 = F.leaky_relu(self.fc_de2(h1))
+        h3 = F.leaky_relu(self.fc_de3(h2))
+        return torch.sigmoid(self.fc_de4(h3))
+
+    def noise_net(self, x, z):
+        """Network to generate wi (noise) from xi and z(i-1)
+        Parameters:
+            x (tensor) -- inputs in observation space
+            z (tensor) -- inputs in latent space
+        """
+        h = F.leaky_relu(self.fc_no1(torch.cat((x,z),dim=1)))
+        noise_dist = F.leaky_relu(self.fc_no2(h))
+        noise = self.sample(noise_dist)
+        return noise_dist, noise
+
+    def phase(self, n_steps, t=None):
+        """The phase variable replaces explicit timing.
+
+        It starts with 1 at the begining of the movement and converges exponentially to 0.
+        """
+        phases = torch.exp(-self.alpha/3. * torch.linspace(0, 1, n_steps))
+        if t is None:
+            return phases
+        else:
+            return phases[t]
+
+    def force_net(self, zs):
+        """Network to generate force for each frame
+        Parameters:
+            zs (tensor) -- list of latent codes [len_sequence, batch, z_dim]
+        Returns:
+            forces (tensor) -- list of forces [len_sequence, batch, z_dim]
+        """
+        force_weights, _ = self.lstm(zs)
+        N = force_weights.shape[0]
+        forces = []
+
+        c = self.phases(N)
+        h = c[1:] - c[:-1]
+        h = torch.cat((h, h[-1].reshape(1)))
+
+        for t in len(N):
+            x = self.phases(N,t)
+            phi = torch.exp(-h * (x - c) ** 2)
+            phi = x * phi / phi.sum()
+            f = torch.dot(force_weights, phi)
+            forces.append(f)
+
+        return forces
+
+
+    def forward(self, x):
+        """Calculate VAE-DMP's output. Take input as sequence.
+        Parameters:
+            x (tensor) - - observation inputs of shape [batch, len_sequence, x_dim]
+        Returns:
+            Latent codes zs and reconstructed xs.
+        """
+        zs = []
+        xs = []
+        fs = []
+        wds = []
+        # first, reshape x from [batch, len_sequence, x_dim] to [len_sequence, batch, x_dim]
+        x = torch.transpose(x, 0, 1)
+        # z1
+        feature1 = self.encoder(x[0])
+        wd1, w1, z1 = self.init_enc(feature1)
+        zs.append(z1)
+        x1 = self.decoder(z1)
+        xs.append(x1)
+        wds.append(wd1)
+        # z2
+        feature2 = self.encoder(x[1])
+        _, w2, z2 = self.init_enc(feature2)
+        # z_goal
+        featuren = self.encoder(x[-1])
+        _, wn, zn = self.init_enc(featuren)
+
+        dz1 = (z2 - z1) / self.dt
+        zt = z1
+        dzt = dz1
+        for t, xt in enumerate(x[1:]):
+            wdt, wt = self.noise_net(xt, zt)
+            wds.append(wdt)
+            fs = self.force_net(zs)
+            ft = fs[t]
+            # calculate z[t+1]
+            cur = torch.stack(zt, dzt)
+            nex = torch.matmul(self.A(), cur) + self.b(zn, ft, wt)
+            zt = nex[0]
+            dzt = nex[1]
+            zs.append(zt)
+            # calculate reconstructed x
+            xt = self.decoder(zt)
+            xs.append(xt)
+
+        return zs, xs, wds
+
+
+
+class VAEDMPLoss(nn.Module):
+    def __init__(self):
+        super(VAEDMPLoss, self).__init__()
+
+    def __call__(self, wd, inputs, outputs):
+        dim = wd.shape[-1]/2
+        w_mean, w_logstd = torch.split(dist, [dim, dim], dim=1)
+        w_std = torch.exp(w_logstd) + 1e-3
+        w_dist = torch.distributions.normal.Normal(loc=w_mean, scale=w_std)
+        prior_dist = torch.distributions.normal.Normal(loc=torch.zeros_like(w_mean), scale=torch.ones_like(w_std))
+        kl_loss = F.kl_div(w_dist, prior_dist, reduction = 'sum')
+
+        recons_loss = F.mse_loss(outputs, inputs, reduction = 'sum')
+        #recons_loss *= 0.5
+
+        loss = recons_loss + kl_loss
+        #print(inputs, '----', outputs)
+        return loss
+
+

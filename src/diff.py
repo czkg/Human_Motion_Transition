@@ -5,7 +5,7 @@ import argparse
 
 g_path = './gt/'
 i_path = './gan/poses/'
-groundtruth = ['216.csv', '221.csv', '226.csv', '231.csv', '236.csv', '241.csv', '246.csv', '251.csv', '256.csv', '261.csv']
+groundtruth = ['46.csv', '51.csv', '56.csv', '61.csv', '66.csv', '71.csv', '76.csv', '81.csv', '86.csv', '91.csv']
 inputs = ['1.csv', '2.csv', '3.csv', '4.csv', '5.csv', '6.csv', '7.csv', '8.csv', '9.csv', '10.csv']
 
 if __name__ == '__main__':

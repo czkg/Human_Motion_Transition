@@ -12,5 +12,5 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/linear_interpolate.py \
 	--init_type normal \
 	--init_gain 0.8 \
 	--batch_size 512 \
-	--epoch latest \
+	--epoch 0 \
 	--is_decoder

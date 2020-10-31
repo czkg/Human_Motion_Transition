@@ -14,7 +14,7 @@ class PoseDataset(BaseDataset):
 		""" Initialize this dataset class
 
 		Parameters:
-			opt (option calss) -- stores all the experiment flags; needs to be a subclass of BaseOptions
+			opt (option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
 		"""
 
 		BaseDataset.__init__(self, opt)

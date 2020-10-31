@@ -14,14 +14,14 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/test.py \
 	--init_type kaiming \
 	--init_gain 0.8 \
 	--batch_size 32 \
-	--epoch 150 \
+	--epoch latest \
 	--epoch2 0 \
-	--z0 ../dataset/Human3.6m/latent_nth/S5/Sitting/216.mat \
-	--z1 ../dataset/Human3.6m/latent_nth/S5/Sitting/261.mat \
+	--z0 ../dataset/Human3.6m/latent_nth/S7/Discussion/1266.mat \
+	--z1 ../dataset/Human3.6m/latent_nth/S7/SittingDown/976.mat \
 	--output_path ../res/gan \
 	--path_length 10 \
 	--a_mode ones \
-	--norm instance \
+	--norm batch \
 	--where_add all \
 	--z_size 32 \
 	--num_downs 7 \

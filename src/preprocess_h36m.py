@@ -1,0 +1,231 @@
+from minimal_ik.models import *
+from minimal_ik.armatures import *
+from minimal_ik.solver import *
+from minimal_ik.config import *
+
+import numpy as np
+import argparse
+import os
+from glob import glob
+from shutil import rmtree
+
+'''
+LSP-14 to smpl
+|index     |  joint name      |    corresponding SMPL joint ids   |
+|----------|:----------------:|---- -----------------------------:|
+| 0        |  Right hip       |2                                  |
+| 1        |  Right knee      |5                                  |
+| 2        |  Right foot      |8                                  |
+| 3        |  Left hip        |1                                  |
+| 4        |  Left knee       |4                                  |
+| 5        |  Left foot       |7                                  |
+| 6        |  Thorax(neck)    |12                                 |
+| 7        |  Head            |vertex 411 (see line 233:fit_3d.py)|
+| 8        |  Left shoulder   |16                                 |
+| 9        |  Left elbow      |18                                 |
+| 10       |  Left wrist      |20                                 |
+| 11       |  Right shoulder  |17                                 |
+| 12       |  Right elbow     |19                                 |
+| 13       |  Right wrist     |21                                 |
+'''
+
+'''
+H36M-17 to smpl
+|index     |  joint name      |    corresponding SMPL joint ids   |
+|----------|:----------------:|---- -----------------------------:|
+| 0        |  Pelvis          |0                                  |
+| 1        |  Right hip       |2                                  |
+| 2        |  Right knee      |5                                  |
+| 3        |  Right ankle     |8                                  |
+| 4        |  Left hip        |1                                  |
+| 5        |  Left knee       |4                                  |
+| 6        |  Left ankle      |7                                  |
+| 7        |  Spine           |6                                  |
+| 8        |  neck            |15                                 |
+| 9        |  Head            |vertex 411                         |
+| 10       |  Thorax          |12                                 |
+| 11       |  Left shoulder   |16                                 |
+| 12       |  Left elbow      |18                                 |
+| 13       |  Left wrist      |20                                 |
+| 14       |  Right shoulder  |17                                 |
+| 15       |  Right elbow     |19                                 |
+| 16       |  Right wrist     |21                                 | 
+'''
+
+# LSP2SMPL = {
+# 	0: 2,
+# 	1: 5,
+# 	2: 8,
+# 	3: 1,
+# 	4: 4,
+# 	5: 7,
+# 	6: 12,
+# 	8: 16,
+# 	9: 18,
+# 	10:20,
+# 	11:17,
+# 	12:19,
+# 	13:21 
+# }
+
+H36M2SMPL = {
+	0: 0,
+	1: 2,
+	2: 5,
+	3: 8,
+	4: 1,
+	5: 4,
+	6: 7,
+	7: 6,
+	8: 15,
+	10:12,
+	11:16,
+	12:18,
+	13:20,
+	14:17,
+	15:19,
+	16:21 
+}
+
+smpl_redundant_joints = [3, 9, 10, 11, 13, 14, 22, 23]
+
+rest_pose_file = './minimal_ik/model/00193_body.pkl'
+
+
+H36M_SUBJECTS = ['S1', 'S5', 'S6', 'S7', 'S8', 'S9', 'S11']
+
+def load_pose(file):
+	with open(file, 'rb') as f:
+		data = pickle.load(f, encoding='latin1')
+	return data['pose']
+
+def transform(source, target):
+	root_t = target[0]
+
+	r_hip2knee_t = target[2] - target[5]
+	r_knee2ankle_t = target[5] - target[8]
+	l_hip2knee_t = target[1] - target[4]
+	l_knee2ankle_t = target[4] - target[7]
+
+	r_shoulder2elbow_t = target[17] - target[19]
+	r_elbow2wrist_t = target[19] - target[21]
+	l_shoulder2elbow_t = target[16] - target[18]
+	l_elbow2wrist_t = target[18] - target[20]
+
+	root_s = source[0]
+
+	r_hip2knee_s = source[1] - source[2]
+	r_knee2ankle_s = source[2] - source[3]
+	l_hip2knee_s = source[4] - source[5]
+	l_knee2ankle_s = source[5] - source[6]
+
+	r_shoulder2elbow_s = source[14] - source[15]
+	r_elbow2wrist_s = source[15] - source[16]
+	l_shoulder2elbow_s = source[11] - source[12]
+	l_elbow2wrist_s = source[12] - source[13]
+
+	print('---------')
+	print(np.linalg.norm(r_hip2knee_s)/np.linalg.norm(r_hip2knee_t))
+	print(np.linalg.norm(r_knee2ankle_s)/np.linalg.norm(r_knee2ankle_t))
+	print(np.linalg.norm(l_hip2knee_s)/np.linalg.norm(l_hip2knee_t))
+	print(np.linalg.norm(l_knee2ankle_s)/np.linalg.norm(l_knee2ankle_t))
+	print(np.linalg.norm(r_shoulder2elbow_s)/np.linalg.norm(r_shoulder2elbow_t))
+	print(np.linalg.norm(r_elbow2wrist_s)/np.linalg.norm(r_elbow2wrist_t))
+	print(np.linalg.norm(l_shoulder2elbow_s)/np.linalg.norm(l_shoulder2elbow_t))
+	print(np.linalg.norm(l_elbow2wrist_s)/np.linalg.norm(l_elbow2wrist_t))
+	print('---------')
+
+def translate(source, offset):
+	for val in source:
+		val += offset
+	return source
+
+def skew(vec):
+	res = np.zeros((3, 3))
+	res[0][1] = -vec[2]
+	res[0][2] = vec[1]
+	res[1][0] = vec[2]
+	res[1][2] = -vec[0]
+	res[2][0] = -vec[1]
+	res[2][1] = vec[0]
+
+	return res
+
+def get_R(vec_s, vec_t):
+	v = np.cross(vec_s, vec_t)
+	s = np.linalg.norm(v)
+	c = np.dot(vec_s, vec_t)
+	I = np.eye(3)
+	vx = skew(v)
+
+	R = I + vx + np.dot(vx, vx) * (1. - c) / s**2
+	return R 
+
+if __name__ == '__main__':
+	n_pose = 23 * 3 # degree of freedom, (n_joints - 1) * 3
+	n_shape = 10
+	pose_pca = np.random.uniform(-0.2, 0.2, size=n_pose)
+	pose_glb = np.zeros((1, 3))
+	shape = np.random.normal(size=n_shape)
+	mesh = KinematicModel(SMPL_MODEL_PATH, SMPLArmature)
+
+	wrapper = KinematicPCAWrapper(mesh, n_pose=n_pose)
+	solver = Solver(verbose=True)
+
+	h36m_path = H36M_PATH
+	output_path = OUTPUT_PATH
+
+	#extract pose parameters from rest pose
+	rest_pose = load_pose(rest_pose_file)
+	rest_pose = np.reshape(rest_pose, (-1, 3))
+	rest_key_pose = np.array([])
+
+	if os.path.exists(output_path):
+		rmtree(output_path)
+	os.makedirs(output_path)
+	for s in H36M_SUBJECTS:
+		os.makedirs(os.path.join(output_path, s))
+
+	for idx, s in enumerate(H36M_SUBJECTS):
+		acts = os.listdir(os.path.join(h36m_path, s))
+		for act in acts:
+			os.makedirs(os.path.join(output_path, s, act))
+			file_list = glob(os.path.join(h36m_path, s, act) + '/*.csv')
+			for f in file_list:
+				filename = f.split('/')[-1][:-4]
+
+				_, smpl_points = mesh.set_params(pose_pca=pose_pca, pose_glb=pose_glb, shape=shape)
+
+				#np.savetxt('est.csv', smpl_points, delimiter=',')
+
+				smpl_points_mask = np.ones(smpl_points.shape[0], dtype=bool)
+				smpl_points_mask[smpl_redundant_joints] = False
+
+				vec1 = smpl_points[6] - smpl_points[0]
+				vec1 = vec1 / np.linalg.norm(vec1)
+
+				h36m_points = np.genfromtxt(f, delimiter=' ')
+				vec2 = h36m_points[7] - h36m_points[0]
+				vec2 = vec2 / np.linalg.norm(vec2)
+
+				#apply rotation
+				R = get_R(vec2, vec1)
+				h36m_points_R = [np.matmul(R,p) for p in h36m_points]
+				h36m_points = np.vstack(h36m_points_R)
+
+				#apply translation
+				h36m_points = translate(h36m_points, smpl_points[0] - h36m_points[0])
+
+				#set val
+				for h36m_id, smpl_id in H36M2SMPL.items():
+					smpl_points[smpl_id] = h36m_points[h36m_id]
+
+				params_est = solver.solve(wrapper, smpl_points, smpl_points_mask)
+				shape_est, pose_pca_est, pose_glb_est = wrapper.decode(params_est)
+				mesh.set_params(pose_pca=pose_pca_est)
+				mesh.save_obj('./est.obj')
+				break
+			break
+		break
+
+	

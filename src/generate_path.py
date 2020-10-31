@@ -42,7 +42,7 @@ if __name__ == '__main__':
 			# get key frames
 			key_list = file_list[0::step]
 
-			# length = 15 here
+			# length = 10 here
 			num = len(key_list) - length + 1
 			paths = np.empty((num, length), dtype = int)
 			for i in range(num):
