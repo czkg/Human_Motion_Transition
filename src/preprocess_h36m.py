@@ -9,6 +9,10 @@ import os
 from glob import glob
 from shutil import rmtree
 
+import matplotlib as mpl
+from mayavi import mlab
+import matplotlib.pyplot as plt
+
 '''
 LSP-14 to smpl
 |index     |  joint name      |    corresponding SMPL joint ids   |
@@ -52,22 +56,6 @@ H36M-17 to smpl
 | 16       |  Right wrist     |21                                 | 
 '''
 
-# LSP2SMPL = {
-# 	0: 2,
-# 	1: 5,
-# 	2: 8,
-# 	3: 1,
-# 	4: 4,
-# 	5: 7,
-# 	6: 12,
-# 	8: 16,
-# 	9: 18,
-# 	10:20,
-# 	11:17,
-# 	12:19,
-# 	13:21 
-# }
-
 H36M2SMPL = {
 	0: 0,
 	1: 2,
@@ -87,12 +75,63 @@ H36M2SMPL = {
 	16:21 
 }
 
+H36M22SMPL = {
+	2: 5,
+	3: 8,
+	5: 4,
+	6: 7,
+	8: 15,
+	11:16,
+	12:18,
+	13:20,
+	14:17,
+	15:19,
+	16:21 
+}
+
+SMPLParents = [0,0,0,0,1,2,3,4,5,6,7,8,
+			   9,9,9,12,13,14,16,17,18,19,20,21]
+
+smpl_limbs_roots = [7, 8, 20, 21]
+smpl_limbs = [10, 11, 22, 23]
+
 smpl_redundant_joints = [3, 9, 10, 11, 13, 14, 22, 23]
 
 rest_pose_file = './minimal_ik/model/00193_body.pkl'
 
 
 H36M_SUBJECTS = ['S1', 'S5', 'S6', 'S7', 'S8', 'S9', 'S11']
+
+def plot_skeleton(pose, type):
+	"""Plot skeleton. Type 0: smpl; Type 1: h36m 
+	"""
+	pose = pose.transpose()
+	if type == 0:
+		kin = np.array([[0,1], [0,2], [0,3], [1,4], [2,5], [3,6], [4,7], [5,8], [6,9], 
+						[7,10], [8,11], [9,12], [9,13], [9,14], [12,15], [13,16], [14,17],
+						[16,18], [17,19], [18,20], [19,21], [20,22], [21,23]])
+	elif type == 1:
+		kin = np.array([[0, 7], [7, 8], [8, 9], [10, 9], [8, 11], [11, 12], [12, 13], 
+						[8, 14], [14, 15], [15, 16], [0, 1], [1, 2], [2, 3], [0, 4], [4, 5], [5, 6]])
+	else:
+		raise Exception('Unexpect type!')
+
+	mpl.rcParams['legend.fontsize'] = 10
+
+	fig = mlab.figure(bgcolor=(1,1,1))
+	ax_ranges = [-1, 1, -1, 1, -1, 1]
+	#ax = fig.gca(projection='3d')
+	#ax.view_init(azim=-90, elev=15)
+	mlab.view(azimuth=-90, elevation=10)
+	if type == 0:
+		colors = np.ones([24, 3])
+	elif type == 1:
+		colors = np.ones([17,3])
+
+	for idx, link in enumerate(kin):
+		mlab.plot3d(pose[0, link], pose[2, link], pose[1, link], color=(colors[idx][0],colors[idx][1],colors[idx][2]), line_width=2.0, figure=fig)
+
+	mlab.show()
 
 def load_pose(file):
 	with open(file, 'rb') as f:
@@ -136,9 +175,7 @@ def transform(source, target):
 	print('---------')
 
 def translate(source, offset):
-	for val in source:
-		val += offset
-	return source
+	return source+offset
 
 def skew(vec):
 	res = np.zeros((3, 3))
@@ -159,7 +196,32 @@ def get_R(vec_s, vec_t):
 	vx = skew(v)
 
 	R = I + vx + np.dot(vx, vx) * (1. - c) / s**2
-	return R 
+	return R
+
+def computeBoneLength(points, ty):
+	boneLength = []
+	for i in range(1,24):
+		if ty == 0:
+			bone = np.linalg.norm(points[i] - points[SMPLParents[i]])
+		else:
+			bone = np.linalg.norm(points[i] - points[SMPL2H36M[SMPLParents[i]]])
+		boneLength.append(bone)
+	return np.asarray(boneLength)
+
+def computeRelativeOffUnit(points, ty):
+	offs = []
+	boneLength = computeBoneLength(points, ty)
+	for i in range(1,24):
+		if ty == 0:
+			off = points[i] - points[SMPLParents[i]]
+		else:
+			off = points[i] - points[SMPL2H36M[SMPLParents[i]]]
+		offs.append(off)
+	offs = np.asarray(offs)
+	offUnit = offs / boneLength
+
+	return offUnit
+
 
 if __name__ == '__main__':
 	n_pose = 23 * 3 # degree of freedom, (n_joints - 1) * 3
@@ -195,7 +257,7 @@ if __name__ == '__main__':
 				filename = f.split('/')[-1][:-4]
 
 				_, smpl_points = mesh.set_params(pose_pca=pose_pca, pose_glb=pose_glb, shape=shape)
-
+				boneLength = computeBoneLength(smpl_points, 0)
 				#np.savetxt('est.csv', smpl_points, delimiter=',')
 
 				smpl_points_mask = np.ones(smpl_points.shape[0], dtype=bool)
@@ -208,6 +270,12 @@ if __name__ == '__main__':
 				vec2 = h36m_points[7] - h36m_points[0]
 				vec2 = vec2 / np.linalg.norm(vec2)
 
+				# #apply scale
+				# smpl_LlegLength = smpl_points[4] - smpl_points[1]
+				# smpl_RlegLength = smpl_points[8] - smpl_points[5]
+				# h36m_LlegLength = h36m_points[5] - h36m_points[4]
+				# h36m_RlegLength = h36m_points[3] - h36m_points[2]
+
 				#apply rotation
 				R = get_R(vec2, vec1)
 				h36m_points_R = [np.matmul(R,p) for p in h36m_points]
@@ -216,9 +284,27 @@ if __name__ == '__main__':
 				#apply translation
 				h36m_points = translate(h36m_points, smpl_points[0] - h36m_points[0])
 
+				#compute new offsets based on their parents
+				offUnit = computeRelativeOffUnit(h36m_points, 1)
+
+				#record limbs offset
+				# limbs_offs = [smpl_points[smpl_limbs[t]] - smpl_points[smpl_limbs_roots[t]] for t in range(4)]
+				# limbs_offs = np.asarray(limbs_offs)
+
+				plot_skeleton(smpl_points, 0)
 				#set val
+				# for h36m_id, smpl_id in H36M22SMPL.items():
+				# 	smpl_points[smpl_id] = h36m_points[h36m_id]
 				for h36m_id, smpl_id in H36M2SMPL.items():
-					smpl_points[smpl_id] = h36m_points[h36m_id]
+					smpl_points[smpl_id] = smpl_points[SMPLParents[smpl_id]] + boneLength[smpl_id]*offUnit[h36m_id]
+
+				#apply limbs offset
+				# for i in range(4):
+				# 	smpl_points[smpl_limbs[i]] = smpl_points[smpl_limbs_roots[i]] + limbs_offs[i]
+				#printBoneLength(smpl_points)
+
+				plot_skeleton(h36m_points, 1)
+				plot_skeleton(smpl_points, 0)
 
 				params_est = solver.solve(wrapper, smpl_points, smpl_points_mask)
 				shape_est, pose_pca_est, pose_glb_est = wrapper.decode(params_est)
