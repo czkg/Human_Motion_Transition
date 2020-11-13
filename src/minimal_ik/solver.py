@@ -13,7 +13,7 @@ class Solver:
     max_iter : int, optional
       Max iterations, by default 30
     mse_threshold : float, optional
-      Early top when mse change is smaller than this threshold, by default 1e-8
+      Early stop when mse change is smaller than this threshold, by default 1e-8
     verbose : bool, optional
       Print information in each iteration, by default False
     """

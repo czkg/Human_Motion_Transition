@@ -4,7 +4,8 @@
 class SMPLArmature:
   n_joints = 24
 
-  keypoints_ext = [2446, 5907, 3216, 6618, 411]
+  #keypoints_ext = [2446, 5907, 3216, 6618, 411]
+  keypoints_ext = [411]
 
   n_keypoints = n_joints + len(keypoints_ext)
 
@@ -32,7 +33,8 @@ class SMPLArmature:
   class H36MArmature:
     n_joints = 17
 
-    keypoints_ext = [2446, 5907, 3216, 6618, 411]
+    #keypoints_ext = [2446, 5907, 3216, 6618, 411]
+    keypoints_ext = [411]
     n_keypoints = n_joints + len(keypoints_ext)
 
 

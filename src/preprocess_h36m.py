@@ -75,6 +75,33 @@ H36M2SMPL = {
 	16:21 
 }
 
+SMPL2H36M = {
+	0: 0,
+	1: 4,
+	2: 1,
+	3: -1,
+	4: 5,
+	5: 2,
+	6: 7,
+	7: 6,
+	8: 3,
+	9: -1,
+	10: -1,
+	11: -1,
+	12: 10,
+	13: -1,
+	14: -1,
+	15: 8,
+	16: 11,
+	17: 14,
+	18: 12,
+	19: 15,
+	20: 13,
+	21: 16,
+	22: -1,
+	23: -1
+}
+
 H36M22SMPL = {
 	2: 5,
 	3: 8,
@@ -86,11 +113,12 @@ H36M22SMPL = {
 	13:20,
 	14:17,
 	15:19,
-	16:21 
+	16:21
 }
 
 SMPLParents = [0,0,0,0,1,2,3,4,5,6,7,8,
 			   9,9,9,12,13,14,16,17,18,19,20,21]
+H36MParents = [0,0,1,2,0,4,5,0,10,8,7,10,11,12,10,14,15]
 
 smpl_limbs_roots = [7, 8, 20, 21]
 smpl_limbs = [10, 11, 22, 23]
@@ -200,25 +228,32 @@ def get_R(vec_s, vec_t):
 
 def computeBoneLength(points, ty):
 	boneLength = []
-	for i in range(1,24):
-		if ty == 0:
+	if ty == 0:
+		for i in range(24):
 			bone = np.linalg.norm(points[i] - points[SMPLParents[i]])
-		else:
-			bone = np.linalg.norm(points[i] - points[SMPL2H36M[SMPLParents[i]]])
-		boneLength.append(bone)
+			boneLength.append(bone)
+	else:
+		for i in range(17):
+			bone = np.linalg.norm(points[i] - points[H36MParents[i]])
+			boneLength.append(bone)
 	return np.asarray(boneLength)
 
 def computeRelativeOffUnit(points, ty):
 	offs = []
 	boneLength = computeBoneLength(points, ty)
-	for i in range(1,24):
-		if ty == 0:
+	if ty == 0:
+		for i in range(24):
 			off = points[i] - points[SMPLParents[i]]
-		else:
-			off = points[i] - points[SMPL2H36M[SMPLParents[i]]]
-		offs.append(off)
+			offs.append(off)
+	else:
+		for i in range(17):
+			off = points[i] - points[H36MParents[i]]
+			offs.append(off)
+		
 	offs = np.asarray(offs)
-	offUnit = offs / boneLength
+	offUnit = [offs[i] / boneLength[i] for i in range(len(boneLength))]
+	offUnit[0] = np.zeros((3))
+	offUnit = np.asarray(offUnit)
 
 	return offUnit
 
@@ -257,51 +292,40 @@ if __name__ == '__main__':
 				filename = f.split('/')[-1][:-4]
 
 				_, smpl_points = mesh.set_params(pose_pca=pose_pca, pose_glb=pose_glb, shape=shape)
-				boneLength = computeBoneLength(smpl_points, 0)
+				#boneLength = computeBoneLength(smpl_points, 0)
 				#np.savetxt('est.csv', smpl_points, delimiter=',')
 
-				smpl_points_mask = np.ones(smpl_points.shape[0], dtype=bool)
-				smpl_points_mask[smpl_redundant_joints] = False
+				# smpl_points_mask = np.ones(smpl_points.shape[0], dtype=bool)
+				# smpl_points_mask[smpl_redundant_joints] = False
 
-				vec1 = smpl_points[6] - smpl_points[0]
-				vec1 = vec1 / np.linalg.norm(vec1)
+				# vec1 = smpl_points[6] - smpl_points[0]
+				# vec1 = vec1 / np.linalg.norm(vec1)
 
-				h36m_points = np.genfromtxt(f, delimiter=' ')
-				vec2 = h36m_points[7] - h36m_points[0]
-				vec2 = vec2 / np.linalg.norm(vec2)
+				# h36m_points = np.genfromtxt(f, delimiter=' ')
+				# vec2 = h36m_points[7] - h36m_points[0]
+				# vec2 = vec2 / np.linalg.norm(vec2)
 
 				# #apply scale
-				# smpl_LlegLength = smpl_points[4] - smpl_points[1]
-				# smpl_RlegLength = smpl_points[8] - smpl_points[5]
-				# h36m_LlegLength = h36m_points[5] - h36m_points[4]
-				# h36m_RlegLength = h36m_points[3] - h36m_points[2]
 
-				#apply rotation
-				R = get_R(vec2, vec1)
-				h36m_points_R = [np.matmul(R,p) for p in h36m_points]
-				h36m_points = np.vstack(h36m_points_R)
+				# #apply rotation
+				# R = get_R(vec2, vec1)
+				# h36m_points_R = [np.matmul(R,p) for p in h36m_points]
+				# h36m_points = np.vstack(h36m_points_R)
 
-				#apply translation
-				h36m_points = translate(h36m_points, smpl_points[0] - h36m_points[0])
+				# #apply translation
+				# h36m_points = translate(h36m_points, smpl_points[0] - h36m_points[0])
 
-				#compute new offsets based on their parents
-				offUnit = computeRelativeOffUnit(h36m_points, 1)
+				# #compute new offsets based on their parents
+				# offUnitH36M = computeRelativeOffUnit(h36m_points, 1)
+				# offUnitSMPL = computeRelativeOffUnit(smpl_points, 0)
 
-				#record limbs offset
-				# limbs_offs = [smpl_points[smpl_limbs[t]] - smpl_points[smpl_limbs_roots[t]] for t in range(4)]
-				# limbs_offs = np.asarray(limbs_offs)
+				# plot_skeleton(smpl_points, 0)
 
-				plot_skeleton(smpl_points, 0)
-				#set val
-				# for h36m_id, smpl_id in H36M22SMPL.items():
-				# 	smpl_points[smpl_id] = h36m_points[h36m_id]
-				for h36m_id, smpl_id in H36M2SMPL.items():
-					smpl_points[smpl_id] = smpl_points[SMPLParents[smpl_id]] + boneLength[smpl_id]*offUnit[h36m_id]
-
-				#apply limbs offset
-				# for i in range(4):
-				# 	smpl_points[smpl_limbs[i]] = smpl_points[smpl_limbs_roots[i]] + limbs_offs[i]
-				#printBoneLength(smpl_points)
+				# for smpl_id, h36m_id in SMPL2H36M.items():
+				# 	if h36m_id == -1:
+				# 		smpl_points[smpl_id] = smpl_points[SMPLParents[smpl_id]] + boneLength[smpl_id]*offUnitSMPL[smpl_id]
+				# 	else:
+				# 		smpl_points[smpl_id] = smpl_points[SMPLParents[smpl_id]] + boneLength[smpl_id]*offUnitH36M[h36m_id]
 
 				plot_skeleton(h36m_points, 1)
 				plot_skeleton(smpl_points, 0)
