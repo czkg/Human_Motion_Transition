@@ -50,6 +50,13 @@ class BaseOptions():
         parser.add_argument('--pca_dim', type=int, default=2048, help='dimension of the pca inside the VAE')
         parser.add_argument('--num_joints', type = int, default=17, help='number of joints')
 
+        # VAEDMP parameters
+        parser.add_argument('--x_dim', type=int, default=72, help='dimension of single pose input')
+        parser.add_argument('--hidden_dim', type=int, default=512, help='dimension of hidden layers')
+        parser.add_argument('--transform_dim', type=int, default=128, help='dimension of transform layers')
+        parser.add_argument('--noise_dim', type=int, default=32, help='dimension of noise layers')
+        parser.add_argument('--u_dim', type=int, default=32, help='dimension of input u')
+
         # extra parameters
         parser.add_argument('--where_add', type=str, default='none', help='input|all|middle; where to add z in the network G')
         parser.add_argument('--conditional_D', action='store_true', help='if use conditional GAN for D')

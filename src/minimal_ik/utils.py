@@ -1,8 +1,25 @@
 import numpy as np
+import pickle
+from .smpl_webuser.serialization import load_model
 
 SMPLParents = [0,0,0,0,1,2,3,4,5,6,7,8,
 			   9,9,9,12,13,14,16,17,18,19,20,21]
 H36MParents = [0,0,1,2,0,4,5,0,10,8,7,10,11,12,10,14,15]
+
+
+def load_smpl_pose(file, model_file):
+	"""Load pose from pkl file
+	"""
+	with open(file, 'rb') as f:
+		data = pickle.load(f, encoding='latin1')
+	model = load_model(model_file)
+
+	model.betas[:len(data['betas'])] = data['betas']
+	model.pose[:] = data['pose']
+	model.trans[:] = data['trans']
+
+	J = model.J_transformed.r
+	return J
 
 def registrate(skeleton_s, skeleton_t):
 	"""Map skeleton_s to skeleton_t
@@ -13,7 +30,7 @@ def registrate(skeleton_s, skeleton_t):
 		skeleton: registrated source skeleton
 	"""
 	n = skeleton_s.shape[0]
-	if n != 17 or n != 24:
+	if n != 17 and n != 24:
 		raise Exception('Invalid input for skeleton_s!')
 	if n == 17:
 		vec_s = skeleton_s[7] - skeleton_s[0]

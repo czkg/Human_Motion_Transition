@@ -2,6 +2,7 @@ from minimal_ik.models import *
 from minimal_ik.armatures import *
 from minimal_ik.solver import *
 from minimal_ik.config import *
+from minimal_ik.utils import *
 
 import numpy as np
 import argparse
@@ -125,7 +126,7 @@ smpl_limbs = [10, 11, 22, 23]
 
 smpl_redundant_joints = [3, 9, 10, 11, 13, 14, 22, 23]
 
-rest_pose_file = './minimal_ik/model/00193_body.pkl'
+rest_pose_file = './minimal_ik/model/00018_body.pkl'
 
 
 H36M_SUBJECTS = ['S1', 'S5', 'S6', 'S7', 'S8', 'S9', 'S11']
@@ -202,60 +203,60 @@ def transform(source, target):
 	print(np.linalg.norm(l_elbow2wrist_s)/np.linalg.norm(l_elbow2wrist_t))
 	print('---------')
 
-def translate(source, offset):
-	return source+offset
+# def translate(source, offset):
+# 	return source+offset
 
-def skew(vec):
-	res = np.zeros((3, 3))
-	res[0][1] = -vec[2]
-	res[0][2] = vec[1]
-	res[1][0] = vec[2]
-	res[1][2] = -vec[0]
-	res[2][0] = -vec[1]
-	res[2][1] = vec[0]
+# def skew(vec):
+# 	res = np.zeros((3, 3))
+# 	res[0][1] = -vec[2]
+# 	res[0][2] = vec[1]
+# 	res[1][0] = vec[2]
+# 	res[1][2] = -vec[0]
+# 	res[2][0] = -vec[1]
+# 	res[2][1] = vec[0]
 
-	return res
+# 	return res
 
-def get_R(vec_s, vec_t):
-	v = np.cross(vec_s, vec_t)
-	s = np.linalg.norm(v)
-	c = np.dot(vec_s, vec_t)
-	I = np.eye(3)
-	vx = skew(v)
+# def get_R(vec_s, vec_t):
+# 	v = np.cross(vec_s, vec_t)
+# 	s = np.linalg.norm(v)
+# 	c = np.dot(vec_s, vec_t)
+# 	I = np.eye(3)
+# 	vx = skew(v)
 
-	R = I + vx + np.dot(vx, vx) * (1. - c) / s**2
-	return R
+# 	R = I + vx + np.dot(vx, vx) * (1. - c) / s**2
+# 	return R
 
-def computeBoneLength(points, ty):
-	boneLength = []
-	if ty == 0:
-		for i in range(24):
-			bone = np.linalg.norm(points[i] - points[SMPLParents[i]])
-			boneLength.append(bone)
-	else:
-		for i in range(17):
-			bone = np.linalg.norm(points[i] - points[H36MParents[i]])
-			boneLength.append(bone)
-	return np.asarray(boneLength)
+# def computeBoneLength(points, ty):
+# 	boneLength = []
+# 	if ty == 0:
+# 		for i in range(24):
+# 			bone = np.linalg.norm(points[i] - points[SMPLParents[i]])
+# 			boneLength.append(bone)
+# 	else:
+# 		for i in range(17):
+# 			bone = np.linalg.norm(points[i] - points[H36MParents[i]])
+# 			boneLength.append(bone)
+# 	return np.asarray(boneLength)
 
-def computeRelativeOffUnit(points, ty):
-	offs = []
-	boneLength = computeBoneLength(points, ty)
-	if ty == 0:
-		for i in range(24):
-			off = points[i] - points[SMPLParents[i]]
-			offs.append(off)
-	else:
-		for i in range(17):
-			off = points[i] - points[H36MParents[i]]
-			offs.append(off)
+# def computeRelativeOffUnit(points, ty):
+# 	offs = []
+# 	boneLength = computeBoneLength(points, ty)
+# 	if ty == 0:
+# 		for i in range(24):
+# 			off = points[i] - points[SMPLParents[i]]
+# 			offs.append(off)
+# 	else:
+# 		for i in range(17):
+# 			off = points[i] - points[H36MParents[i]]
+# 			offs.append(off)
 		
-	offs = np.asarray(offs)
-	offUnit = [offs[i] / boneLength[i] for i in range(len(boneLength))]
-	offUnit[0] = np.zeros((3))
-	offUnit = np.asarray(offUnit)
+# 	offs = np.asarray(offs)
+# 	offUnit = [offs[i] / boneLength[i] for i in range(len(boneLength))]
+# 	offUnit[0] = np.zeros((3))
+# 	offUnit = np.asarray(offUnit)
 
-	return offUnit
+# 	return offUnit
 
 
 if __name__ == '__main__':
@@ -273,9 +274,7 @@ if __name__ == '__main__':
 	output_path = OUTPUT_PATH
 
 	#extract pose parameters from rest pose
-	rest_pose = load_pose(rest_pose_file)
-	rest_pose = np.reshape(rest_pose, (-1, 3))
-	rest_key_pose = np.array([])
+	rest_pose = load_smpl_pose(rest_pose_file, OFFICIAL_SMPL_PATH)
 
 	if os.path.exists(output_path):
 		rmtree(output_path)
@@ -297,6 +296,9 @@ if __name__ == '__main__':
 
 				# smpl_points_mask = np.ones(smpl_points.shape[0], dtype=bool)
 				# smpl_points_mask[smpl_redundant_joints] = False
+
+				rest_pose_mask = np.ones(rest_pose.shape[0], dtype=bool)
+				#rest_pose_mask[smpl_redundant_joints] = False
 
 				# vec1 = smpl_points[6] - smpl_points[0]
 				# vec1 = vec1 / np.linalg.norm(vec1)
@@ -327,10 +329,13 @@ if __name__ == '__main__':
 				# 	else:
 				# 		smpl_points[smpl_id] = smpl_points[SMPLParents[smpl_id]] + boneLength[smpl_id]*offUnitH36M[h36m_id]
 
-				plot_skeleton(h36m_points, 1)
+				rest_pose = registrate(rest_pose, smpl_points)
+				#plot_skeleton(h36m_points, 1)
 				plot_skeleton(smpl_points, 0)
+				plot_skeleton(rest_pose, 0)
+				print(rest_pose_mask.shape)
 
-				params_est = solver.solve(wrapper, smpl_points, smpl_points_mask)
+				params_est = solver.solve(wrapper, rest_pose, rest_pose_mask)
 				shape_est, pose_pca_est, pose_glb_est = wrapper.decode(params_est)
 				mesh.set_params(pose_pca=pose_pca_est)
 				mesh.save_obj('./est.obj')

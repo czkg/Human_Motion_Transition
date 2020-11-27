@@ -4,7 +4,7 @@ from vctoolkit import Timer
 
 
 class Solver:
-  def __init__(self, eps=1e-5, max_iter=100, mse_threshold=1e-8, verbose=False):
+  def __init__(self, eps=1e-1, max_iter=100, mse_threshold=1e-8, verbose=False):
     """
     Parameters
     ----------

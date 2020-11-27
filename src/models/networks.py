@@ -957,19 +957,22 @@ class VAEDMP(nn.Module):
     """Define deep variational bayes filters (DVBF) objectives.
     """
 
-    def __init__(self, x_dim, hidden_dim, u_dim, z_dim, noise_dim, alpha=25.0, beta=25.0/4.0, tau=1.0, dt=0.01):
+    def __init__(self, x_dim, u_dim, z_dim, hidden_dim, transform_dim, noise_dim, is_decoder, alpha=25.0, beta=25.0/4.0, tau=1.0, dt=0.01):
         """ Initialize the GANLoss class.
 
         Parameters:
             x_dim (int) - - dimension of observation x
             u_dim (int) - - dimension of control signal u
             z_dim (int) - - dimension of latent code z
+            hidden_dim (int) - - dimension of hidden layers
         """
         super(VAEDMP, self).__init__()
         self.x_dim = x_dim
         self.u_dim = u_dim
         self.z_dim = z_dim
         self.noise_dim = noise_dim
+        self.hidden_dim = hidden_dim
+        self.transform_dim = transform_dim
 
         self.alpha = alpha
         self.beta = beta
@@ -1079,40 +1082,49 @@ class VAEDMP(nn.Module):
         noise = self.sample(noise_dist)
         return noise_dist, noise
 
-    def phase(self, n_steps, t=None):
-        """The phase variable replaces explicit timing.
+    # def phase(self, n_steps, t=None):
+    #     """The phase variable replaces explicit timing.
 
-        It starts with 1 at the begining of the movement and converges exponentially to 0.
-        """
-        phases = torch.exp(-self.alpha/3. * torch.linspace(0, 1, n_steps))
-        if t is None:
-            return phases
-        else:
-            return phases[t]
+    #     It starts with 1 at the begining of the movement and converges exponentially to 0.
+    #     """
+    #     phases = torch.exp(-self.alpha/3. * torch.linspace(0, 1, n_steps))
+    #     if t is None:
+    #         return phases
+    #     else:
+    #         return phases[t]
 
-    def force_net(self, zs):
+    def force_net(self, z):
         """Network to generate force for each frame
         Parameters:
-            zs (tensor) -- list of latent codes [len_sequence, batch, z_dim]
+            z (tensor) -- list of latent codes [len_sequence, batch, z_dim]
         Returns:
-            forces (tensor) -- list of forces [len_sequence, batch, z_dim]
+            f (tensor) -- force of last frame [batch, z_dim]
         """
-        force_weights, _ = self.lstm(zs)
-        N = force_weights.shape[0]
-        forces = []
+        zg = z[-1,...]
+        dz = self.d(z)
+        ddz = self.dd(z)
 
-        c = self.phases(N)
-        h = c[1:] - c[:-1]
-        h = torch.cat((h, h[-1].reshape(1)))
+        f = self.tau*self.tau*ddz - self.alpha*(
+            self.beta*(zg - z) - self.tau*dz)
 
-        for t in len(N):
-            x = self.phases(N,t)
-            phi = torch.exp(-h * (x - c) ** 2)
-            phi = x * phi / phi.sum()
-            f = torch.dot(force_weights, phi)
-            forces.append(f)
+        return f[-1]
 
-        return forces
+    def d(self, x):
+        d = torch.zeros_like(x)
+        if x.shape[0] == 1:
+            return d
+        else:
+            for i in range(x.shape[0]):
+                if i == 0:
+                    d[i,...] = x[i+1,...] - x[i,...]
+                elif i == x.shape[0]-1:
+                    d[i,...] = x[i,...] - x[i-1,...]
+                else:
+                    d[i,...] = x[i+1,...] - x[i-1,...] / 2.
+            return d
+
+    def dd(self, x):
+        return self.d(self.d(x))
 
 
     def forward(self, x):
@@ -1122,19 +1134,12 @@ class VAEDMP(nn.Module):
         Returns:
             Latent codes zs and reconstructed xs.
         """
-        zs = []
-        xs = []
-        fs = []
-        wds = []
         # first, reshape x from [batch, len_sequence, x_dim] to [len_sequence, batch, x_dim]
         x = torch.transpose(x, 0, 1)
         # z1
         feature1 = self.encoder(x[0])
-        wd1, w1, z1 = self.init_enc(feature1)
-        zs.append(z1)
-        x1 = self.decoder(z1)
-        xs.append(x1)
-        wds.append(wd1)
+        wds, ws, zs = self.init_enc(feature1)
+        xs = self.decoder(zs)
         # z2
         feature2 = self.encoder(x[1])
         _, w2, z2 = self.init_enc(feature2)
@@ -1142,25 +1147,29 @@ class VAEDMP(nn.Module):
         featuren = self.encoder(x[-1])
         _, wn, zn = self.init_enc(featuren)
 
-        dz1 = (z2 - z1) / self.dt
-        zt = z1
-        dzt = dz1
+        dz1 = (z2 - zs) / self.dt
+        zt = zs.clone()
+        dzt = dz1.clone()
+
+        xs = xs.unsqueeze(0)
+        zs = zs.unsqueeze(0)
+        wds = wds.unsqueeze(0)
+        ws = ws.unsqueeze(0)
         for t, xt in enumerate(x[1:]):
             wdt, wt = self.noise_net(xt, zt)
-            wds.append(wdt)
-            fs = self.force_net(zs)
-            ft = fs[t]
+            wds = torch.cat((wds, wdt.unsqueeze(0)), 0)
+            ft = self.force_net(zs)
             # calculate z[t+1]
             cur = torch.stack(zt, dzt)
             nex = torch.matmul(self.A(), cur) + self.b(zn, ft, wt)
             zt = nex[0]
             dzt = nex[1]
-            zs.append(zt)
+            zs = torch.cat((zs, zt.unsqueeze(0)), 0)
             # calculate reconstructed x
             xt = self.decoder(zt)
-            xs.append(xt)
+            xs = torch.cat((xs, xt.unsqueeze(0)), 0)
 
-        return zs, xs, wds
+        return xs, zs, wds
 
 
 
