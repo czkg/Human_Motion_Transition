@@ -37,7 +37,7 @@ class VAEDMPModel(BaseModel):
 			self.is_decoder = True
 		else:
 			self.is_decoder = False
-		self.netVAEDMP = networks.VAEDMP(self.x_dim, self.u_dim, self.z_dim, self.hidden_dim, self.transform_dim, self.noise_dim, self.is_decoder)
+		self.netVAEDMP = networks.VAEDMP(self.x_dim, self.u_dim, self.z_dim, self.hidden_dim, self.transform_dim, self.noise_dim, self.is_decoder, self.device)
 		self.netVAEDMP = networks.init_net(self.netVAEDMP, init_type = opt.init_type, init_gain = opt.init_gain, gpu_ids = opt.gpu_ids)
 		if self.isTrain:
 			#define loss functions

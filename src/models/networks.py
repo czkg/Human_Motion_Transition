@@ -957,7 +957,7 @@ class VAEDMP(nn.Module):
     """Define deep variational bayes filters (DVBF) objectives.
     """
 
-    def __init__(self, x_dim, u_dim, z_dim, hidden_dim, transform_dim, noise_dim, is_decoder, alpha=25.0, beta=25.0/4.0, tau=1.0, dt=0.01):
+    def __init__(self, x_dim, u_dim, z_dim, hidden_dim, transform_dim, noise_dim, is_decoder, device, alpha=25.0, beta=25.0/4.0, tau=1.0, dt=0.01):
         """ Initialize the GANLoss class.
 
         Parameters:
@@ -973,6 +973,8 @@ class VAEDMP(nn.Module):
         self.noise_dim = noise_dim
         self.hidden_dim = hidden_dim
         self.transform_dim = transform_dim
+
+        self.device = device
 
         self.alpha = alpha
         self.beta = beta
@@ -1005,31 +1007,31 @@ class VAEDMP(nn.Module):
         # force_net (use LSTM)
         self.lstm = nn.LSTM(self.z_dim, self.u_dim)
 
-    def A(self):
+    def A(self, zt, dzt):
         """Matrix A in transition model
         """
-        A = np.zeros((2,2))
-        I = np.identity(2)
+        I = torch.eye(2)
 
-        A[0][0] = -1 * self.dt * self.alpha * self.beta * (1./self.tau)
-        A[0][1] = -1 * self.dt * self.alpha * (1./self.tau) + 1.
-        A[1][0] = -1 * self.alpha * self.beta * (1./self.tau)
-        A[1][1] = -1 * self.alpha * (1./self.tau)
+        A1 = (-1 * self.dt * self.alpha * self.beta * (1./self.tau)) * self.dt + 1.
+        A2 = (-1 * self.dt * self.alpha * (1./self.tau) + 1.) * self.dt
+        A3 = (-1 * self.alpha * self.beta * (1./self.tau)) * self.dt
+        A4 = (-1 * self.alpha * (1./self.tau)) * self.dt + 1.
 
-        A *= self.dt
+        a1 = A1 * zt + A2 * dzt
+        a2 = A3 * zt + A4 * dzt
 
-        return A + I
+        aa = torch.stack((a1, a2), dim=0)
+        return aa
 
     def b(self, z_goal, f, eps):
         """Matrix b in transition model
         """
-        b = np.ones((2,1))
-        b[0][0] = self.dt
+        b = (self.alpha * self.beta * z_goal + f + eps) * self.dt * (1./self.tau)
+        b1 = self.dt * b
+        b2 = 1. * b
 
-        temp = self.slpha * self.beta * z_goal + f + eps
-        temp *= (self.dt * (1./self.tau))
-
-        return b * temp
+        bb = torch.stack((b1, b2), dim=0)
+        return bb
 
     def encoder(self, x):
         """Encoder network to extract features from inputs X
@@ -1160,8 +1162,7 @@ class VAEDMP(nn.Module):
             wds = torch.cat((wds, wdt.unsqueeze(0)), 0)
             ft = self.force_net(zs)
             # calculate z[t+1]
-            cur = torch.stack(zt, dzt)
-            nex = torch.matmul(self.A(), cur) + self.b(zn, ft, wt)
+            nex = self.A(zt, dzt) + self.b(zn, ft, wt)
             zt = nex[0]
             dzt = nex[1]
             zs = torch.cat((zs, zt.unsqueeze(0)), 0)
@@ -1177,14 +1178,26 @@ class VAEDMPLoss(nn.Module):
     def __init__(self):
         super(VAEDMPLoss, self).__init__()
 
-    def __call__(self, wd, inputs, outputs):
-        dim = wd.shape[-1]/2
-        w_mean, w_logstd = torch.split(dist, [dim, dim], dim=1)
-        w_std = torch.exp(w_logstd) + 1e-3
-        w_dist = torch.distributions.normal.Normal(loc=w_mean, scale=w_std)
-        prior_dist = torch.distributions.normal.Normal(loc=torch.zeros_like(w_mean), scale=torch.ones_like(w_std))
-        kl_loss = F.kl_div(w_dist, prior_dist, reduction = 'sum')
+    def sample(self, dist):
+        """Function to generate samples from distributions
+        """
+        mu, logvar = torch.split(dist, [self.noise_dim, self.noise_dim], dim=1)
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        sample = torch.sigmoid(mu + eps * std)
+        return sample
 
+    def __call__(self, wd, inputs, outputs):
+        dim = int(wd.shape[-1]/2)
+        w_mean, w_logstd = torch.split(wd, [dim, dim], dim=-1)
+        # w_std = torch.exp(w_logstd) + 1e-3
+        # w_dist = torch.distributions.normal.Normal(loc=w_mean, scale=w_std)
+        # prior_dist = torch.distributions.normal.Normal(loc=torch.zeros_like(w_mean), scale=torch.ones_like(w_std))
+        # kl_loss = F.kl_div(w_dist, prior_dist, reduction = 'sum')
+        kl_loss = torch.sum(1. + w_logstd - w_mean.pow(2) - w_logstd.exp())
+        kl_loss *= -0.5
+
+        inputs = torch.transpose(inputs, 0, 1)
         recons_loss = F.mse_loss(outputs, inputs, reduction = 'sum')
         #recons_loss *= 0.5
 
