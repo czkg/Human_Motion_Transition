@@ -29,6 +29,12 @@ class LafanDataset(BaseDataset):
 		self.offset = opt.lafan_offset
 		self.samplerate = opt.lafan_samplerate
 
+		if self.norm is True:
+			mmin_path = opt.lafan_mmin
+			mmax_path = opt.lafan_mmax
+			self.mmin = np.load(mmin_path)
+			self.mmax = np.load(mmax_path)
+
 		if self.is_local is True:
 			files = glob(os.path.join(self.root, '*_local.pkl'))
 		else:
@@ -79,6 +85,8 @@ class LafanDataset(BaseDataset):
 			else:
 				data = rawdata['X']
 			pose = data[in_idx]
+			if self.norm is True:
+				pose = (pose - self.mmin) / (self.mmax - self.mmin)
 
 			return torch.tensor(pose)
 		elif self.mode == 'seq':
@@ -98,6 +106,20 @@ class LafanDataset(BaseDataset):
 			else:
 				data = rawdata['X']
 			seq = data[::self.framerate][init_idx*self.offset : init_idx*self.offset+self.window]
+			if self.norm is True:
+				seq = (seq - self.mmin) / (self.mmax - self.mmin)
+
+			# add rv
+			if self.is_local is True:
+				global_file = file[:-9] + 'global.pkl'
+			else:
+				global_file = file
+			with open(os.path.join(self.root, global_file), 'rb') as f:
+				global_data = pickle.load(f, encoding='latin1')
+			rv = global_data['rv'][::self.framerate][init_idx*self.offset : init_idx*self.offset+self.window]
+			rv = rv[:,np.newaxis,...]
+			seq = np.concatenate((rv, seq), axis=1)
+
 			return torch.tensor(seq)
 		else:
 			raise('Invalid mode!')
