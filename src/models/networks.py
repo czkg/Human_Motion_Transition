@@ -368,6 +368,196 @@ class VAELoss(nn.Module):
         return loss
 
 
+class VAE2(nn.Module):
+    """ This class implements the alternative VAE model, 
+        for encoding the observation data into latent space 
+        and recover the original data from it.
+    """
+
+    def __init__(self, x_dim, z_dim, pca_dim, is_decoder):
+        """ Initialize the alternative VAE class
+
+        Parameters:
+            opt (Option class) -- stores all the experiment flags, needs to be a subclass of BaseOptions
+        """
+        super(VAE2, self).__init__()
+        self.x_dim = x_dim
+        self.z_dim = z_dim
+        self.pca_dim =pca_dim
+        self.is_decoder = is_decoder
+
+        # build the network
+        # encoder
+        self.fc1 = nn.Linear(self.x_dim, self.pca_dim)
+        self.fc2 = nn.Linear(self.pca_dim, self.pca_dim)
+        self.fc3 = nn.Linear(self.pca_dim, 2*self.z_dim)
+        # decoder
+        self.fc4 = nn.Linear(self.z_dim, self.pca_dim)
+        self.fc5 = nn.Linear(self.pca_dim, self.pca_dim)
+        self.fc6 = nn.Linear(self.pca_dim, self.x_dim)
+
+
+    def gen_pca(self, x):
+        pca = sklearn.decomposition.PCA(n_components = self.pca_dim, whiten = False)
+        pca.fit(x)
+        self.pca_weights = pca.components_
+
+
+    def encoder(self, x):
+        #build encoder model
+        h1 = F.leaky_relu(self.fc1(x))
+        h2 = F.leaky_relu(self.fc2(h1))
+        zd = self.fc3(h2)
+        return zd
+
+    def reparameterize(self, dist):
+        mu, logvar = torch.split(dist, [self.z_dim, self.z_dim], dim=1)
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        sample = torch.sigmoid(mu + eps * std)
+        return sample
+
+    def decoder(self, z):
+        h1 = F.leaky_relu(self.fc4(z))
+        h2 = F.leaky_relu(self.fc5(h1))
+        return torch.sigmoid(self.fc6(h2))
+
+
+    def forward(self, x):
+        if not self.is_decoder:
+            zd = self.encoder(x)
+            z = self.reparameterize(zd)
+            out = self.decoder(z)
+            return out, zd, z
+        else:
+            out = self.decoder(x)
+            return out
+
+
+class VAE2Loss(nn.Module):
+    def __init__(self):
+        super(VAE2Loss, self).__init__()
+
+    def __call__(self, zd, inputs, outputs):
+        dim = int(zd.shape[-1]/2)
+        mu, logvar = torch.split(zd, [dim, dim], dim=-1)
+        kl_loss = torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        kl_loss *= -0.5
+
+        recons_loss = F.binary_cross_entropy(outputs, inputs, reduction = 'sum')
+        #recons_loss *= 0.5
+
+        loss = recons_loss + 1000*kl_loss
+        #print(inputs, '----', outputs)
+        return loss
+
+
+class VAE2D(nn.Module):
+    """ This class implements the VAE2D model, 
+        for encoding the observation data into latent space 
+        and recover the original data from it.
+    """
+
+    def __init__(self, x_dim, z_dim, pca_dim, is_decoder):
+        """ Initialize the VAE class
+
+        Parameters:
+            opt (Option class) -- stores all the experiment flags, needs to be a subclass of BaseOptions
+        """
+        super(VAE2D, self).__init__()
+        self.x_dim = x_dim
+        self.z_dim = z_dim
+        in_channels = 1
+        h_dims = [16, 32, 64, 128, 256]
+        self.is_decoder = is_decoder
+
+        # build the network
+        # encoder
+        self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=h_dims[0], kernel_size=1)
+        self.conv2 = nn.Conv2d(in_channels=h_dims[0], out_channels=h_dims[1], kernel_size=1)
+        self.conv3 = nn.Conv2d(in_channels=h_dims[1], out_channels=h_dims[2], kernel_size=1)
+        self.conv4 = nn.Conv2d(in_channels=h_dims[2], out_channels=h_dims[3], kernel_size=1)
+        self.conv5 = nn.Conv2d(in_channels=h_dims[3], out_channels=h_dims[4], kernel_size=1)
+        self.fc_mu = nn.Linear(self.x_dim * h_dims[-1], self.z_dim)
+        self.fc_var = nn.Linear(self.x_dim * h_dims[-1], self.z_dim)
+        # decoder
+        self.fc_de = nn.Linear(self.z_dim, self.x_dim * h_dims[-1])
+        self.deconv1 = nn.ConvTranspose2d(h_dims[4], h_dims[3], kernel_size=1)
+        self.deconv2 = nn.ConvTranspose2d(h_dims[3], h_dims[2], kernel_size=1)
+        self.deconv3 = nn.ConvTranspose2d(h_dims[2], h_dims[1], kernel_size=1)
+        self.deconv4 = nn.ConvTranspose2d(h_dims[1], h_dims[0], kernel_size=1)
+        self.final_de = nn.Conv2d(in_channels=h_dims[0], out_channels=in_channels, kernel_size=1)
+
+
+    def gen_pca(self, x):
+        pca = sklearn.decomposition.PCA(n_components = self.pca_dim, whiten = False)
+        pca.fit(x)
+        self.pca_weights = pca.components_
+
+
+    def encoder(self, x):
+        #build encoder model
+        h1 = F.leaky_relu(self.conv1(x))
+        h2 = F.leaky_relu(self.conv2(h1))
+        h3 = F.leaky_relu(self.conv3(h2))
+        h4 = F.leaky_relu(self.conv4(h3))
+        h5 = F.leaky_relu(self.conv5(h4))
+        h5 = torch.flatten(h5, start_dim=1)
+        mu = self.fc_mu(h5)
+        logvar = self.fc_var(h5)
+        return mu, logvar
+
+    def reparameterize(self, mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        z = torch.sigmoid(mu + eps * std)
+        return z
+
+    def decoder(self, z):
+        h6 = self.fc_de(z)
+        h6 = h6.view(-1, 256, 24, 3)
+        h7 = F.leaky_relu(self.deconv1(h6))
+        h8 = F.leaky_relu(self.deconv2(h7))
+        h9 = F.leaky_relu(self.deconv3(h8))
+        h10 = F.leaky_relu(self.deconv4(h9))
+        return torch.sigmoid(self.final_de(h10))
+
+
+    def forward(self, x):
+        if not self.is_decoder:
+            mu, logvar = self.encoder(x)
+            z = self.reparameterize(mu, logvar)
+            out = self.decoder(z)
+            return out, z, mu, logvar
+        else:
+            out = self.decoder(x)
+            return out
+
+
+class VAE2DLoss(nn.Module):
+    def __init__(self):
+        super(VAE2DLoss, self).__init__()
+
+    def __call__(self, mu, logvar, inputs, outputs):
+        kl_loss = torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        kl_loss *= -0.5
+
+        recons_loss = F.mse_loss(outputs, inputs, reduction = 'sum')*100
+        #recons_loss *= 0.5
+
+        loss = recons_loss + kl_loss
+        #print(inputs, '----', outputs)
+        return loss
+
+
+class MVAE(nn.Module):
+    def __init__(self):
+        super(MVAE, self).__init__()
+
+    def forward(self, x):
+        return x
+        
+
 class RecLoss(nn.Module):
     def __init__(self, use_L2=True):
         super(RecLoss, self).__init__()
@@ -984,8 +1174,7 @@ class VAEDMP(nn.Module):
         # encoder
         self.fc_en1 = nn.Linear(self.x_dim, self.hidden_dim)
         self.fc_en2 = nn.Linear(self.hidden_dim, self.hidden_dim)
-        self.fc_en3 = nn.Linear(self.hidden_dim, self.hidden_dim)
-        self.fc_en4 = nn.Linear(self.hidden_dim, self.z_dim)
+        self.fc_en3 = nn.Linear(self.hidden_dim, self.z_dim)
 
         # initial enc for noise1
         self.fc_in1 = nn.Linear(self.z_dim, self.transform_dim)
@@ -997,15 +1186,14 @@ class VAEDMP(nn.Module):
         # decoder
         self.fc_de1 = nn.Linear(self.z_dim, self.hidden_dim)
         self.fc_de2 = nn.Linear(self.hidden_dim, self.hidden_dim)
-        self.fc_de3 = nn.Linear(self.hidden_dim, self.hidden_dim)
-        self.fc_de4 = nn.Linear(self.hidden_dim, self.x_dim)
+        self.fc_de3 = nn.Linear(self.hidden_dim, self.x_dim)
 
         # noise_net
-        self.fc_no1 = nn.Linear(self.x_dim+self.z_dim, self.transform_dim)
+        self.fc_no1 = nn.Linear(2*self.z_dim+self.u_dim, self.transform_dim)
         self.fc_no2 = nn.Linear(self.transform_dim, 2*self.noise_dim)
         
         # force_net (use LSTM)
-        self.lstm = nn.LSTM(self.z_dim, self.u_dim)
+        #self.lstm = nn.LSTM(self.z_dim, self.u_dim)
 
     def A(self, zt, dzt):
         """Matrix A in transition model
@@ -1040,9 +1228,8 @@ class VAEDMP(nn.Module):
         """
         h1 = F.leaky_relu(self.fc_en1(x))
         h2 = F.leaky_relu(self.fc_en2(h1))
-        h3 = F.leaky_relu(self.fc_en3(h2))
-        dist = F.leaky_relu(self.fc_en4(h3))
-        return dist
+        feat = F.leaky_relu(self.fc_en3(h2))
+        return feat
 
     def init_enc(self, x):
         """Network to generate z1, w1 and z_goal, w_goal from features
@@ -1070,16 +1257,17 @@ class VAEDMP(nn.Module):
         """
         h1 = F.leaky_relu(self.fc_de1(z))
         h2 = F.leaky_relu(self.fc_de2(h1))
-        h3 = F.leaky_relu(self.fc_de3(h2))
-        return torch.sigmoid(self.fc_de4(h3))
+        return torch.sigmoid(self.fc_de3(h2))
 
-    def noise_net(self, x, z):
+    def noise_net(self, feature, z, f):
         """Network to generate wi (noise) from xi and z(i-1)
         Parameters:
-            x (tensor) -- inputs in observation space
+            feature (tensor) -- inputs extract from encoder
             z (tensor) -- inputs in latent space
+            f (tensor) -- force inputs
         """
-        h = F.leaky_relu(self.fc_no1(torch.cat((x,z),dim=1)))
+        x = torch.cat((feature, z),dim=1)
+        h = F.leaky_relu(self.fc_no1(torch.cat((x,f),dim=1)))
         noise_dist = F.leaky_relu(self.fc_no2(h))
         noise = self.sample(noise_dist)
         return noise_dist, noise
@@ -1095,12 +1283,12 @@ class VAEDMP(nn.Module):
     #     else:
     #         return phases[t]
 
-    def force_net(self, z):
+    def force(self, z):
         """Network to generate force for each frame
         Parameters:
             z (tensor) -- list of latent codes [len_sequence, batch, z_dim]
         Returns:
-            f (tensor) -- force of last frame [batch, z_dim]
+            f (tensor) -- force of current frame [batch, z_dim]
         """
         zg = z[-1,...]
         dz = self.d(z)
@@ -1139,28 +1327,30 @@ class VAEDMP(nn.Module):
         # first, reshape x from [batch, len_sequence, x_dim] to [len_sequence, batch, x_dim]
         x = torch.transpose(x, 0, 1)
         # z1
-        feature1 = self.encoder(x[0])
-        wds, ws, zs = self.init_enc(feature1)
-        xs = self.decoder(zs)
+        features = self.encoder(x)
+        wd1, w1, _ = self.init_enc(features[0])
+        z1 = features[0]
+        x1 = self.decoder(z1)
         # z2
-        feature2 = self.encoder(x[1])
-        _, w2, z2 = self.init_enc(feature2)
+        # _, _, z2 = self.init_enc(features[1])
+        z2 = features[1]
         # z_goal
-        featuren = self.encoder(x[-1])
-        _, wn, zn = self.init_enc(featuren)
+        # _, _, zn = self.init_enc(features[-1])
+        zn = features[-1]
 
-        dz1 = (z2 - zs) / self.dt
-        zt = zs.clone()
+        dz1 = (z2 - z1) / self.dt
+        zt = z1.clone()
         dzt = dz1.clone()
 
-        xs = xs.unsqueeze(0)
-        zs = zs.unsqueeze(0)
-        wds = wds.unsqueeze(0)
-        ws = ws.unsqueeze(0)
+        xs = x1.unsqueeze(0)
+        zs = z1.unsqueeze(0)
+        wds = wd1.unsqueeze(0)
+        ws = w1.unsqueeze(0)
         for t, xt in enumerate(x[1:]):
-            wdt, wt = self.noise_net(xt, zt)
+            # calculate f
+            ft = self.force(zs)
+            wdt, wt = self.noise_net(features[t], zt, ft)
             wds = torch.cat((wds, wdt.unsqueeze(0)), 0)
-            ft = self.force_net(zs)
             # calculate z[t+1]
             nex = self.A(zt, dzt) + self.b(zn, ft, wt)
             zt = nex[0]
@@ -1193,7 +1383,7 @@ class VAEDMPLoss(nn.Module):
         # w_std = torch.exp(w_logstd) + 1e-3
         # w_dist = torch.distributions.normal.Normal(loc=w_mean, scale=w_std)
         # prior_dist = torch.distributions.normal.Normal(loc=torch.zeros_like(w_mean), scale=torch.ones_like(w_std))
-        # kl_loss = F.kl_div(w_dist, prior_dist, reduction = 'sum')
+        # kl_loss = F.kl_div(w_dist.sample(), prior_dist.sample(), reduction = 'sum')
         kl_loss = torch.sum(1. + w_logstd - w_mean.pow(2) - w_logstd.exp())
         kl_loss *= -0.5
 

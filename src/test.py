@@ -26,6 +26,9 @@ if __name__ =='__main__':
 	model.eval()
 	print('Loading model %s' % opt.model)
 
+	# dataset = create_dataset(opt)        # create a dataset given opt.dataset_mode and other options
+	# dataset_size = len(dataset)        # get dataset size
+
 	input_path = opt.input_path
 	output_path = opt.output_path
 	model_name = opt.model
@@ -39,19 +42,19 @@ if __name__ =='__main__':
 	os.makedirs(output_path)
 
 	# test data
-	if model_name == 'vae':
-		file_list = glob(input_path + '/*.mat')
+	if model_name == 'vaedmp' or model_name == 'vae2':
+		file_list = glob(input_path + '/*.npy')
 		num = len(file_list)
-		for i in tqdm.trange(num):
-			f = file_list[i]
-			filename = f.split('/')[-1]
-			x = scipy.io.loadmat(f)['heatmap'][0]
-			x = torch.tensor(x)
-			model.set_input(x)
+		for f in file_list:
+			f_name = f.split('/')[-1]
+			data_in = np.load(f)
+			data_in = data_in[np.newaxis, ...]
+			data = torch.tensor(data_in).float()
+			model.set_input(data)
 			_, out = model.inference()
 			out = out.data.cpu().numpy()
-			filepath = os.path.join(output_path, filename)
-			scipy.io.savemat(filepath, {'heatmap': out})
+			filepath = os.path.join(output_path, f_name)
+			np.save(filepath, out)
 
 	elif model_name == 'path_gan':
 		z0 = scipy.io.loadmat(z0)['latent'][0]

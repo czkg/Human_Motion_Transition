@@ -14,8 +14,8 @@ class TestOptions(BaseOptions):
         parser.add_argument('--eval', action='store_true', help='use eval mode during test time.')
         parser.add_argument('--input_path', type=str, help='input path')
         parser.add_argument('--output_path', type=str, help='output path')
-        parser.add_argument('--z0', type=str, help='input path of first latent code')
-        parser.add_argument('--z1', type=str, help='input path of last latent code')
+        parser.add_argument('--z0', type=str, help='first latent code of input path')
+        parser.add_argument('--z1', type=str, help='last latent code of input path')
 
         self.isTrain = False
         return parser
