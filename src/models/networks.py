@@ -444,7 +444,7 @@ class VAE2Loss(nn.Module):
         kl_loss = torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         kl_loss *= -0.5
 
-        recons_loss = F.binary_cross_entropy(outputs, inputs, reduction = 'sum')
+        recons_loss = F.mse_loss(outputs, inputs, reduction = 'sum')
         #recons_loss *= 0.5
 
         loss = recons_loss + 1000*kl_loss

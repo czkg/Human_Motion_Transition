@@ -5,6 +5,8 @@ import scipy.io
 import torch
 import numpy as np
 from glob import glob
+import pickle
+import math
 
 
 class LafanDataset(BaseDataset):
@@ -30,10 +32,10 @@ class LafanDataset(BaseDataset):
 		self.samplerate = opt.lafan_samplerate
 
 		if self.norm is True:
-			mmin_path = opt.lafan_mmin
-			mmax_path = opt.lafan_mmax
-			self.mmin = np.load(mmin_path)
-			self.mmax = np.load(mmax_path)
+			minmax_path = opt.lafan_minmax
+			minmax = np.load(minmax_path)
+			self.mmin = minmax[0]
+			self.mmax = minmax[1]
 
 		if self.is_local is True:
 			files = glob(os.path.join(self.root, '*_local.pkl'))
@@ -45,17 +47,17 @@ class LafanDataset(BaseDataset):
 		self.pose_count = 0
 		self.seq_count = 0
 		for i, f in enumerate(files):
-			with open(os.path.join(self.root, f), 'rb') as ff:
+			with open(f, 'rb') as ff:
 				rawdata = pickle.load(ff, encoding='latin1')
 			if self.is_quat is True:
 				data = rawdata['Q']
 			else:
 				data = rawdata['X']
-			self.name2accnum[files[i]] = data.shape[0] + prev_pose_count
+			self.name2accnum[files[i]] = data.shape[0] + self.pose_count
 			# math.floor((L-W)/off) + 1
-			self.name2seqaccnum[files[i]] = math.floor((data[::self.framerate].shape[0] - self.window)/self.offset) + 1 
-			prev_pose_count = data.shape[0]
+			self.name2seqaccnum[files[i]] = math.floor((data[::self.samplerate].shape[0] - self.window)/self.offset) + 1 + self.seq_count 
 			self.pose_count += data.shape[0]
+			self.seq_count += math.floor((data[::self.samplerate].shape[0] - self.window)/self.offset) + 1
 		self.accnum2names = dict((v,k) for k,v in self.name2accnum.items())
 		self.seqaccnum2names = dict((v,k) for k,v in self.name2seqaccnum.items())
 
@@ -78,7 +80,7 @@ class LafanDataset(BaseDataset):
 			else:
 				in_idx = index
 			file = self.accnum2names[k]
-			with open(os.path.join(self.root, file), 'rb') as f:
+			with open(file, 'rb') as f:
 				rawdata = pickle.load(f, encoding='latin1')
 			if self.is_quat is True:
 				data = rawdata['Q']
@@ -87,6 +89,13 @@ class LafanDataset(BaseDataset):
 			pose = data[in_idx]
 			if self.norm is True:
 				pose = (pose - self.mmin) / (self.mmax - self.mmin)
+
+			# convert to root-relative position for X
+			if self.is_quat is False:
+				root = pose[0]
+				pose = [p-root for p in pose]
+				pose = np.asarray(pose)
+			pose = pose.reshape(-1)
 
 			return torch.tensor(pose)
 		elif self.mode == 'seq':
@@ -98,32 +107,43 @@ class LafanDataset(BaseDataset):
 				init_idx = index - k_prev
 			else:
 				init_idx = index
-			file = self.accnum2names[k]
-			with open(os.path.join(self.root, file), 'rb') as f:
+			file = self.seqaccnum2names[k]
+			with open(file, 'rb') as f:
 				rawdata = pickle.load(f, encoding='latin1')
 			if self.is_quat is True:
 				data = rawdata['Q']
 			else:
 				data = rawdata['X']
-			seq = data[::self.framerate][init_idx*self.offset : init_idx*self.offset+self.window]
+			seq = data[::self.samplerate][init_idx*self.offset : init_idx*self.offset+self.window]
 			if self.norm is True:
 				seq = (seq - self.mmin) / (self.mmax - self.mmin)
 
+			# convert to root-relative position for X
+			if self.is_quat is False:
+				roots = seq[:,0,...]
+				seq = [seq[i]-roots[i] for i in range(roots.shape[0])]
+				seq = np.asarray(seq)
+
 			# add rv
-			if self.is_local is True:
-				global_file = file[:-9] + 'global.pkl'
-			else:
-				global_file = file
-			with open(os.path.join(self.root, global_file), 'rb') as f:
-				global_data = pickle.load(f, encoding='latin1')
-			rv = global_data['rv'][::self.framerate][init_idx*self.offset : init_idx*self.offset+self.window]
-			rv = rv[:,np.newaxis,...]
-			seq = np.concatenate((rv, seq), axis=1)
+			# if self.is_local is True:
+			# 	global_file = file[:-9] + 'global.pkl'
+			# else:
+			# 	global_file = file
+			# with open(os.path.join(self.root, global_file), 'rb') as f:
+			# 	global_data = pickle.load(f, encoding='latin1')
+			# rv = global_data['rv'][::self.framerate][init_idx*self.offset : init_idx*self.offset+self.window]
+			# rv = rv[:,np.newaxis,...]
+			# seq = np.concatenate((rv, seq), axis=1)
+
+			seq = seq.reshape(seq.shape[0], -1)
 
 			return torch.tensor(seq)
 		else:
 			raise('Invalid mode!')
 
 	def __len__(self):
-		return self.total_count
+		if self.mode == 'pose':
+			return self.pose_count
+		else:
+			return self.seq_count
 		

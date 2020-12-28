@@ -74,8 +74,7 @@ class BaseOptions():
         parser.add_argument('--lafan_window', type=int, default=30, help='length of sequence')
         parser.add_argument('--lafan_offset', type=int, default=20, help='offset to sample the data')
         parser.add_argument('--lafan_samplerate', type=int, default=5, help='sample rate')
-        parser.add_argument('--lafan_mmin', type=str, help='min value file path')
-        parser.add_argument('--lafan_mmax', type=str, help='max value file path')
+        parser.add_argument('--lafan_minmax', type=str, help='min and max values file path')
 
         # special tasks
         self.initialized = True
