@@ -2,23 +2,21 @@ set -ex
 GPU_ID=0
 # command
 CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
-	--dataroot ../dataset/lafan/dataset \
-	--dataset_mode lafan \
+	--dataroot ../dataset/Human3.6m/heatmaps \
+	--dataset_mode pose \
 	--name vae2 \
 	--model vae2 \
 	--checkpoints_dir ../results \
-	--niter 40 \
-	--niter_decay 20 \
+	--niter 50 \
+	--niter_decay 10 \
 	--sigma 0.05 \
-	--x_dim 66 \
-	--z_dim 128 \
-	--pca_dim 256 \
-	--lr 1e-7 \
+	--dim_heatmap 64 \
+	--num_joints 17 \
+	--z_dim 512 \
+	--pca_dim 2048 \
+	--lr 1e-4 \
 	--beta1 0.9 \
-	--init_type xavier \
+	--init_type kaiming \
 	--init_gain 0.8 \
 	--batch_size 16 \
-	--lafan_mode pose \
-	--lafan_minmax ../dataset/lafan/minmax.npy \
-	--lafan_norm \
 	--no_html \

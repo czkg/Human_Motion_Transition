@@ -444,10 +444,10 @@ class VAE2Loss(nn.Module):
         kl_loss = torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         kl_loss *= -0.5
 
-        recons_loss = F.mse_loss(outputs, inputs, reduction = 'sum')
+        recons_loss = F.binary_cross_entropy(outputs, inputs, reduction = 'sum')
         #recons_loss *= 0.5
 
-        loss = recons_loss + 1000*kl_loss
+        loss = recons_loss + kl_loss
         #print(inputs, '----', outputs)
         return loss
 
@@ -1360,6 +1360,9 @@ class VAEDMP(nn.Module):
             xt = self.decoder(zt)
             xs = torch.cat((xs, xt.unsqueeze(0)), 0)
 
+        xs = torch.transpose(xs, 0, 1)
+        zs = torch.transpose(zs, 0, 1)
+        wds = torch.transpose(wds, 0, 1)
         return xs, zs, wds
 
 
@@ -1387,7 +1390,7 @@ class VAEDMPLoss(nn.Module):
         kl_loss = torch.sum(1. + w_logstd - w_mean.pow(2) - w_logstd.exp())
         kl_loss *= -0.5
 
-        inputs = torch.transpose(inputs, 0, 1)
+        #inputs = torch.transpose(inputs, 0, 1)
         recons_loss = F.mse_loss(outputs, inputs, reduction = 'sum')
         #recons_loss *= 0.5
 
@@ -1396,3 +1399,223 @@ class VAEDMPLoss(nn.Module):
         return loss
 
 
+################################################################################
+#                                                                              #
+#                              LSTM implementation                             #
+#                                                                              #
+################################################################################
+# class LSTM(nn.Module):
+#     def __init__(self, input_size, fo_size, hidden_size, batch_first=True):
+#         super(LSTM, self).__init__()
+#         self.input_size = input_size
+#         self.hidden_size = hidden_size
+#         self.fo_size = fo_size
+#         self.num_layers = 1
+#         self.batch_first = batch_first
+
+#         self.input_weights = nn.Linear(input_size, 4 * hidden_size)
+#         self.hidden_weights = nn.Linear(hidden_size, 4 * hidden_size)
+#         self.fo_weights = nn.Linear(fo_size, 4 * hidden_size)
+
+#     def forward(self, x, fo, hidden, ctx, ctx_mask=None):
+#         def recurrence(x, fo, hidden):
+#             hx, cx = hidden
+#             gates = self.input_weights(x) + self.hidden_weights(hx) + self.fo_weights(fo)
+#             ingate, forgetgate, cellgate, outgate = gates.chunk(4, 1)
+
+#             ingate = F.sigmoid(ingate)
+#             forgetgate = F.sigmoid(forgetgate)
+#             cellgate = F.tanh(cellgate)
+#             outgate = F.sigmoid(outgate)
+
+#             cy = (forgetgate * cx) + (ingate * cellgate)
+#             hy = outgate * F.tanh(cy)
+
+#             return hy, cy
+
+#         if self.batch_first:
+#             x = x.transpose(0, 1)
+
+#         output = []
+#         steps = range(x.size(0))
+#         for i in steps:
+#             hidden = recurrence(x[i], fo[i], hidden)
+#             if isinstance(hidden, tuple):
+#                 output.append(hidden[0])
+#             else:
+#                 output.append(hidden)
+
+#         output = torch.cat(output, 0).view(input.size(0), *output[0].size())
+
+#         if self.batch_first:
+#             output = output.transpose(0, 1)
+
+#         return output, hidden
+
+
+class LSTMCell(nn.Module):
+    def __init__(self, input_size, fo_size, hidden_size):
+        super(LSTMCell, self).__init__()
+        self.input_size = input_size
+        self.fo_size = fo_size
+        self.hidden_size = hidden_size
+        self.weight_ih = nn.Parameter(torch.randn(4 * hidden_size, input_size))
+        self.weight_hh = nn.Parameter(torch.randn(4 * hidden_size, hidden_size))
+        self.weight_foh = nn.Parameter(torch.randn(4 * hidden_size, fo_size))
+        self.bias_ih = nn.Parameter(torch.randn(4 * hidden_size))
+        self.bias_hh = nn.Parameter(torch.randn(4 * hidden_size))
+        self.bias_foh = nn.Parameter(torch.randn(4 * hidden_size))
+
+    def forward(self, input, fo, state):
+        # type: (Tensor, Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tuple[Tensor, Tensor]]
+        hx, cx = state
+        gates = (torch.mm(input, self.weight_ih.t()) + self.bias_ih +
+                 torch.mm(hx, self.weight_hh.t()) + self.bias_hh + 
+                 torch.mm(fo, self.weight_foh.t()) + self.bias_foh)
+        ingate, forgetgate, cellgate, outgate = gates.chunk(4, 1)
+
+        ingate = torch.sigmoid(ingate)
+        forgetgate = torch.sigmoid(forgetgate)
+        cellgate = torch.tanh(cellgate)
+        outgate = torch.sigmoid(outgate)
+
+        cy = (forgetgate * cx) + (ingate * cellgate)
+        hy = outgate * torch.tanh(cy)
+
+        return hy, (hy, cy)
+
+
+# define RTNCL algorithm
+class RTNCL(nn.Module):
+    def __init__(self, x_dim, f_dim, o_dim, hidden_dim, z_dim, is_decoder, p_dim=0):
+        super(RTNCL, self).__init__()
+
+        self.x_dim = x_dim
+        self.p_dim = p_dim
+        self.f_dim = f_dim
+        self.o_dim = o_dim
+        self.fo_dim = f_dim + o_dim
+        self.hidden_dim = hidden_dim
+        self.z_dim = z_dim
+
+        # encoder
+        self.fc_en1 = nn.Linear(self.x_dim+self.p_dim, 512)
+        self.fc_en2 = nn.Linear(512, self.z_dim)
+
+        # global offset encoder
+        self.fc_o_en1 = nn.Linear(self.x_dim, 128)
+        self.fc_o_en2 = nn.Linear(128, self.o_dim)
+
+        # target encoder
+        self.fc_f_en1 = nn.Linear(self.x_dim, 128)
+        self.fc_f_en2 = nn.Linear(128, self.f_dim)
+
+        # initial network
+        self.fc_init_en1 = nn.Linear(self.x_dim, 512)
+        self.fc_init_en2 = nn.Linear(512, self.z_dim)
+
+        # transition
+        self.lstmCell = LSTMCell(self.x_dim, self.fo_dim, self.hidden_dim)
+
+
+        # decoder
+        self.fc_de1 = nn.Linear(self.z_dim, 256)
+        self.fc_de2 = nn.Linear(256, 128)
+        self.fc_de3 = nn.Linear(128, self.x_dim)
+
+
+    def encoder(self, x, p=None):
+        """Encoder network to extract features from inputs X
+        Parameters:
+            x (tensor) -- inputs in observation space of shape [batch, len_sequence, x_dim]
+            p (tensor) -- local terrain patch
+        """
+        if p is not None:
+            x = torch.cat((x, p), dim = -1)
+
+        h1 = F.leaky_relu(self.fc_en1(x))
+        h2 = F.leaky_relu(self.fc_en2(h1))
+        return h2
+
+    def decoder(self, h):
+        """Decoder network to recover x from h
+        Parameters:
+            h (tensor) -- hidden states of shape [batch, len_sequence, z_dim]
+        """
+        h1 = F.leaky_relu(self.fc_de1(h))
+        h2 = F.leaky_relu(self.fc_de2(h1))
+        h3 = F.leaky_relu(self.fc_de3(h2))
+        return h3
+
+    def f_net(self, t):
+        """Encoder network to embed target information
+        Parameters:
+            t (tensor) -- target information of shape [batch, len_sequence, f_dim]
+        """
+        h1 = F.leaky_relu(self.fc_f_en1(t))
+        h2 = F.leaky_relu(self.fc_f_en2(h1))
+        return h2
+
+    def o_net(self, o):
+        """Encoder network to embed offset information
+        Parameters:
+            o (tensor) -- offset information of shape [batch, len_sequence, o_dim]
+        """
+        h1 = F.leaky_relu(self.fc_o_en1(o))
+        h2 = F.leaky_relu(self.fc_o_en2(h1))
+        return h2
+
+    def h_init_net(self, x):
+        """MLP to predict initial hidden state h0
+        Parameters:
+        x (tensor) -- The first frame from input sequence of shape [batch, x_dim]
+        """
+        h1 = F.leaky_relu(self.fc_init_en1(x))
+        h2 = F.leaky_relu(self.fc_init_en2(h1))
+        return h2
+
+
+    def forward(self, xs, ts, os, ps=None):
+        """Calculate RTNCL's output.
+        Parameters:
+            xs (tensor) -- observation inputs of shape [batch, len_sequence, x_dim]
+            ts (tensor) -- target frames (T and T+1) as conditioning information
+            os (tensor) -- global offsets from target
+            ps (tensor) -- local terrain patch
+        Returns:
+            hs (tensor) -- transition hidden states
+            xs (tensor) -- transition frames
+        """
+
+        # conver to [len_sequence, batch, dim]
+        xs = torch.transpose(xs, 0, 1)
+        ts = torch.transpose(xs, 0, 1)
+        os = torch.transpose(xs, 0, 1)
+        if ps is not None:
+            ps = torch.transpose(xs, 0, 1)
+
+        hs = []
+        ht = self.h_init_net(x[0])
+        for i in range(xs.shape[0]):
+            he = self.encoder(xs[i], ps[i])
+            hf = self.f_net(ts[i])
+            ho = self.o_net(os[i])
+            hfo = torch.cat((hf, ho), dim = -1)
+
+            ht = self.lstmCell(he, hfo, ht)
+            h = self.decoder(ht)
+            hs.append(h)
+
+        new_xs = xs + hs
+
+        return hs, new_xs
+
+
+class RTNCLLoss(nn.Module):
+    def __init__(self):
+        super(RTNCLLoss, self).__init__()
+
+    def __call__(self, outputs, inputs):
+        loss = F.mse_loss(outputs, inputs, reduction = 'sum')
+        return loss
+        

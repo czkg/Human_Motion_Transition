@@ -67,14 +67,15 @@ class BaseOptions():
         parser.add_argument('--display_winsize', type=int, default=256, help='display window size')
 
         # Lafan dataset parameters
-        parser.add_argument('--lafan_is_local', action='store_true', help='local or global')
         parser.add_argument('--lafan_is_quat', action='store_true', help='quaternion or position')
-        parser.add_argument('--lafan_norm', action='store_true', help='apply normalization over data')
         parser.add_argument('--lafan_mode', type=str, default='pose', help='choose pose or sequence')
         parser.add_argument('--lafan_window', type=int, default=30, help='length of sequence')
         parser.add_argument('--lafan_offset', type=int, default=20, help='offset to sample the data')
         parser.add_argument('--lafan_samplerate', type=int, default=5, help='sample rate')
-        parser.add_argument('--lafan_minmax', type=str, help='min and max values file path')
+        parser.add_argument('--lafan_minmax_path', type=str, default='None', help='minmax file path')
+
+        # H36M dataset parameters
+        parser.add_argument('--h36m_mode', type=str, default='pose', help='choose pose or sequence')
 
         # special tasks
         self.initialized = True

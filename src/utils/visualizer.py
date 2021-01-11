@@ -50,19 +50,19 @@ class Visualizer():
         self.fpz = []
         #predicted xy
         for i in range(1, self.n_joints):
-            f = self.fig_predicted_xy.add_subplot(4,4,i)
+            f = self.fig_predicted_xy.add_subplot(5,5,i)
             self.fpxy.append(f)
         #ground truth xy
         for i in range(1, self.n_joints):
-            f = self.fig_groundtruth_xy.add_subplot(4,4,i)
+            f = self.fig_groundtruth_xy.add_subplot(5,5,i)
             self.fgxy.append(f)
         #predicted z
         for i in range(1, self.n_joints):
-            f = self.fig_predicted_z.add_subplot(4,4,i)
+            f = self.fig_predicted_z.add_subplot(5,5,i)
             self.fpz.append(f)
         #ground truth z
         for i in range(1, self.n_joints):
-            f = self.fig_groundtruth_z.add_subplot(4,4,i)
+            f = self.fig_groundtruth_z.add_subplot(5,5,i)
             self.fgz.append(f)
 
         plt.ion()

@@ -9,6 +9,19 @@ import pickle
 import math
 
 
+def convert2heatmap(seq, heatmap_dim, sigma):
+	# [n_joints, 3]
+	heatmaps = []
+	if len(seq.shape) == 2:
+		seq = seq[np.newaxis, ...]
+	for i in range(seq.shape[0]):
+		pose = seq[i]
+		heatmap = calculate_3Dheatmap(pose, heatmap_dim, sigma)
+		heatmaps.append(heatmap)
+
+	return np.asarray(heatmaps)
+
+
 class LafanDataset(BaseDataset):
 	""" This dataset class can load Lafan data specified by the file path --dataroot/path/to/data
 	"""
@@ -23,27 +36,19 @@ class LafanDataset(BaseDataset):
 		BaseDataset.__init__(self, opt)
 		self.name2accnum = {}
 		self.name2seqaccnum = {}
-		self.is_local = opt.lafan_is_local
 		self.is_quat = opt.lafan_is_quat
-		self.norm = opt.lafan_norm
 		self.mode = opt.lafan_mode
 		self.window = opt.lafan_window
 		self.offset = opt.lafan_offset
 		self.samplerate = opt.lafan_samplerate
 
-		if self.norm is True:
-			minmax_path = opt.lafan_minmax
-			minmax = np.load(minmax_path)
-			self.mmin = minmax[0]
-			self.mmax = minmax[1]
+		# for heatmaps
+		self.heatmap_dim = opt.dim_heatmap
+		self.sigma = opt.sigma
 
-		if self.is_local is True:
-			files = glob(os.path.join(self.root, '*_local.pkl'))
-		else:
-			files = glob(os.path.join(self.root, '*_global.pkl'))
 
-		prev_pose_count = 0
-		prev_seq_count = 0
+		files = glob(os.path.join(self.root, '*.pkl'))
+
 		self.pose_count = 0
 		self.seq_count = 0
 		for i, f in enumerate(files):
@@ -87,17 +92,10 @@ class LafanDataset(BaseDataset):
 			else:
 				data = rawdata['X']
 			pose = data[in_idx]
-			if self.norm is True:
-				pose = (pose - self.mmin) / (self.mmax - self.mmin)
+			heatmap = convert2heatmap(pose, self.heatmap_dim, self.sigma)
+			heatmap = heatmap.reshape(-1)
 
-			# convert to root-relative position for X
-			if self.is_quat is False:
-				root = pose[0]
-				pose = [p-root for p in pose]
-				pose = np.asarray(pose)
-			pose = pose.reshape(-1)
-
-			return torch.tensor(pose)
+			return torch.tensor(heatmap)
 		elif self.mode == 'seq':
 			upper = [k for k in self.seqaccnum2names.keys() if index < k]
 			lower = [k for k in self.seqaccnum2names.keys() if index >= k]
@@ -115,14 +113,7 @@ class LafanDataset(BaseDataset):
 			else:
 				data = rawdata['X']
 			seq = data[::self.samplerate][init_idx*self.offset : init_idx*self.offset+self.window]
-			if self.norm is True:
-				seq = (seq - self.mmin) / (self.mmax - self.mmin)
-
-			# convert to root-relative position for X
-			if self.is_quat is False:
-				roots = seq[:,0,...]
-				seq = [seq[i]-roots[i] for i in range(roots.shape[0])]
-				seq = np.asarray(seq)
+			seq = np.asarray(seq)	
 
 			# add rv
 			# if self.is_local is True:
@@ -135,9 +126,10 @@ class LafanDataset(BaseDataset):
 			# rv = rv[:,np.newaxis,...]
 			# seq = np.concatenate((rv, seq), axis=1)
 
-			seq = seq.reshape(seq.shape[0], -1)
+			heatmaps = convert2heatmap(seq, self.heatmap_dim, self.sigma)
+			heatmaps = heatmaps.reshape(heatmaps.shape[0], -1)
 
-			return torch.tensor(seq)
+			return torch.tensor(heatmaps)
 		else:
 			raise('Invalid mode!')
 

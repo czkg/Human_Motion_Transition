@@ -10,10 +10,11 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--niter 50 \
 	--niter_decay 50 \
 	--dim_heatmap 64 \
+	--num_joints 17 \
 	--sigma 0.05 \
 	--z_dim 512 \
 	--pca_dim 2048 \
-	--lr 0.000001 \
+	--lr 1e-6 \
 	--beta1 0.9 \
 	--init_type normal \
 	--init_gain 0.8 \

@@ -26,7 +26,9 @@ class VAEDMPModel(BaseModel):
 		self.model_names = ['VAEDMP']
 
 		# dimensions
-		self.x_dim = opt.x_dim
+		self.n_joints = opt.num_joints
+		self.dim_heatmap = opt.dim_heatmap
+		self.x_dim = self.dim_heatmap ** 2 * self.n_joints + self.dim_heatmap * self.n_joints
 		self.hidden_dim = opt.hidden_dim
 		self.noise_dim = opt.noise_dim
 		self.transform_dim = opt.transform_dim
@@ -71,7 +73,7 @@ class VAEDMPModel(BaseModel):
 		with torch.no_grad():
 			xs,zs,_ = self.netVAEDMP(self.input)
 
-			return zs, xs
+		return zs, xs
 
 	def decoder(self, z):
 		z = z.to(self.device)
@@ -104,6 +106,8 @@ class VAEDMPModel(BaseModel):
 	# def get_current_out_in(self):
 	# 	return self.output[0],self.input[0]
 
+	def get_current_out_in(self):
+		return self.output[0][10],self.input[0][10]
 
 	def optimize_parameters(self):
 		self.forward()

@@ -24,7 +24,9 @@ class VAE2Model(BaseModel):
 		BaseModel.__init__(self, opt)
 		self.loss_names = ['VAE2']
 		self.model_names = ['VAE2']
-		self.x_dim = opt.x_dim
+		self.n_joints = opt.num_joints
+		self.dim_heatmap = opt.dim_heatmap
+		self.x_dim = self.dim_heatmap ** 2 * self.n_joints + self.dim_heatmap * self.n_joints
 		self.pca_dim = opt.pca_dim
 		self.z_dim = opt.z_dim
 		if opt.is_decoder:
@@ -35,7 +37,7 @@ class VAE2Model(BaseModel):
 		self.netVAE2 = networks.init_net(self.netVAE2, init_type = opt.init_type, init_gain = opt.init_gain, gpu_ids = opt.gpu_ids)
 		if self.isTrain:
 			#define loss functions
-			self.criterionVAE = networks.VAE2Loss().to(self.device)
+			self.criterionVAE2 = networks.VAE2Loss().to(self.device)
 			#initialize optimizers
 			#self.optimizerVAE2 = torch.optim.SGD(self.netVAE2.parameters(), lr = opt.lr)
 			self.optimizerVAE2 = torch.optim.Adam(self.netVAE2.parameters(), lr = opt.lr, betas = (opt.beta1, 0.999), eps = 1e-6)
@@ -87,7 +89,7 @@ class VAE2Model(BaseModel):
 		self.set_requires_grad(self.netVAE2, True)  # enable backprop
 		self.optimizerVAE2.zero_grad()              # set gradients to zero
 
-		self.loss_VAE2 = self.criterionVAE(self.zd, self.input, self.output)
+		self.loss_VAE2 = self.criterionVAE2(self.zd, self.input, self.output)
 		self.loss_VAE2.backward()
 
 		self.optimizerVAE2.step()
