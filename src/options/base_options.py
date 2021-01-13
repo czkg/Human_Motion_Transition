@@ -73,6 +73,7 @@ class BaseOptions():
         parser.add_argument('--lafan_offset', type=int, default=20, help='offset to sample the data')
         parser.add_argument('--lafan_samplerate', type=int, default=5, help='sample rate')
         parser.add_argument('--lafan_minmax_path', type=str, default='None', help='minmax file path')
+        parser.add_argument('--lafan_use_heatmap', action='store_true', help='whether to use heatmap')
 
         # H36M dataset parameters
         parser.add_argument('--h36m_mode', type=str, default='pose', help='choose pose or sequence')

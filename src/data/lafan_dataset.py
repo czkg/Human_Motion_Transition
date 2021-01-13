@@ -41,10 +41,12 @@ class LafanDataset(BaseDataset):
 		self.window = opt.lafan_window
 		self.offset = opt.lafan_offset
 		self.samplerate = opt.lafan_samplerate
+		self.use_heatmap = opt.lafan_use_heatmap
 
 		# for heatmaps
-		self.heatmap_dim = opt.dim_heatmap
-		self.sigma = opt.sigma
+		if self.use_heatmap:
+			self.heatmap_dim = opt.dim_heatmap
+			self.sigma = opt.sigma
 
 
 		files = glob(os.path.join(self.root, '*.pkl'))
@@ -92,10 +94,12 @@ class LafanDataset(BaseDataset):
 			else:
 				data = rawdata['X']
 			pose = data[in_idx]
-			heatmap = convert2heatmap(pose, self.heatmap_dim, self.sigma)
-			heatmap = heatmap.reshape(-1)
 
-			return torch.tensor(heatmap)
+			if use_heatmap:
+				pose = convert2heatmap(pose, self.heatmap_dim, self.sigma)
+			pose = pose.reshape(-1)
+
+			return torch.tensor(pose)
 		elif self.mode == 'seq':
 			upper = [k for k in self.seqaccnum2names.keys() if index < k]
 			lower = [k for k in self.seqaccnum2names.keys() if index >= k]
@@ -126,10 +130,11 @@ class LafanDataset(BaseDataset):
 			# rv = rv[:,np.newaxis,...]
 			# seq = np.concatenate((rv, seq), axis=1)
 
-			heatmaps = convert2heatmap(seq, self.heatmap_dim, self.sigma)
-			heatmaps = heatmaps.reshape(heatmaps.shape[0], -1)
+			if self.use_heatmap:
+				seq = convert2heatmap(seq, self.heatmap_dim, self.sigma)
+			seq = seq.reshape(seq.shape[0], -1)
 
-			return torch.tensor(heatmaps)
+			return torch.tensor(seq)
 		else:
 			raise('Invalid mode!')
 

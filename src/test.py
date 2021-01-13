@@ -14,14 +14,7 @@ import time
 eps = 2e-1
 
 def postprocess(x, opt):
-	if opt.model == 'vaedmp':
-		dataset = opt.dataset_mode
-		minmax_path = getattr(opt, dataset + '_minmax_path')
-		minmax = np.load(minmax_path)
-		mmin = minmax[0]
-		mmax = minmax[1]
-
-		x = mmin + (mmax - mmin) * x
+	if opt.model == 'rtncl':
 		root = np.zeros((x.shape[0], 3))
 		x = np.concatenate((root, x), axis=1)
 		x = x.reshape(x.shape[0], -1, 3)
@@ -40,6 +33,8 @@ def postprocess(x, opt):
 		x = x.reshape(-1, 3)
 		x = x[np.newaxis, ...]
 
+		return x
+	elif opt.model == 'vaedmp':
 		return x
 
 

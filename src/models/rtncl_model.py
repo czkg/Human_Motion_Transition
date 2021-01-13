@@ -27,14 +27,13 @@ class RTNCLModel(BaseModel):
 		self.n_joints = opt.num_joints
 		self.x_dim = opt.x_dim
 		self.hidden_dim = opt.hidden_dim
-		self.f_dim = opt.f_dim
-		self.o_dim = opt.o_dim
-		self.z_dim = opt.z_dim
+		self.t_dim = 2*opt.x_dim
+		self.o_dim = opt.x_dim
 		if opt.is_decoder:
 			self.is_decoder = True
 		else:
 			self.is_decoder = False
-		self.netRTNCL = networks.RTNCL(self.x_dim, self.f_dim, self.o_dim, self.hidden_dim, self.z_dim, self.is_decoder)
+		self.netRTNCL = networks.RTNCL(self.x_dim, self.t_dim, self.hidden_dim, self.is_decoder)
 		self.netRTNCL = networks.init_net(self.netRTNCL, init_type = opt.init_type, init_gain = opt.init_gain, gpu_ids = opt.gpu_ids)
 		if self.isTrain:
 			#define loss functions
@@ -53,8 +52,12 @@ class RTNCLModel(BaseModel):
 		Parameters:
 			input (dict): include the data itself and its metadata information.
 		"""
+		self.target = input.to(self.device).float()
 		self.input = input.to(self.device).float()
-		#!TODO
+		b = self.input[:,-1,...]
+		a = self.input[:,-2,...]
+		self.t = torch.cat((a, b), dim=-1)
+		self.input[:,10:-3,...] = 0.
 
 	def get_model(self):
 		return self.netRTNCL
@@ -63,7 +66,7 @@ class RTNCLModel(BaseModel):
 	def forward(self):
 		""" Run forward pass, called by both functions <optimize_parameters> and <test>
 		"""
-		self.hs, self.output = self.netRTNCL(self.input)
+		self.hs, self.output = self.netRTNCL(self.input, self.t)
 
 	def inference(self):
 		with torch.no_grad():
@@ -75,7 +78,7 @@ class RTNCLModel(BaseModel):
 		self.set_requires_grad(self.netRTNCL, True)  # enable backprop
 		self.optimizerRTNCL.zero_grad()              # set gradients to zero
 
-		self.loss_RTNCL = self.criterionRTNCL(self.zd, self.input, self.output)
+		self.loss_RTNCL = self.criterionRTNCL(self.output, self.target)
 		self.loss_RTNCL.backward()
 
 		self.optimizerRTNCL.step()
