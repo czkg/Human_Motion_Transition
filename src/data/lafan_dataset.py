@@ -69,6 +69,19 @@ class LafanDataset(BaseDataset):
 		self.seqaccnum2names = dict((v,k) for k,v in self.name2seqaccnum.items())
 
 
+	def generate_filename(self, base_name, start, end):
+		"""Generate new file name given parent name, start idx and end idx
+
+		Parameters:
+			base_name -- parent name from originl file
+			start     -- start idx in base_name file
+			end       -- end idx in base_name file
+		"""
+
+		new_name = base_name[:-4] + '_' + str(start) + '_' + str(end) + '.pkl'
+		return new_name
+
+
 	def __getitem__(self, index):
 		""" Return a data point and its metadata information
 
@@ -117,7 +130,10 @@ class LafanDataset(BaseDataset):
 			else:
 				data = rawdata['X']
 			seq = data[::self.samplerate][init_idx*self.offset : init_idx*self.offset+self.window]
-			seq = np.asarray(seq)	
+			seq = np.asarray(seq)
+
+			#generate new file name
+			file_name = self.generate_filename(file.split('/')[-1], init_idx*self.offset, init_idx*self.offset+self.window)
 
 			# add rv
 			# if self.is_local is True:
@@ -134,7 +150,7 @@ class LafanDataset(BaseDataset):
 				seq = convert2heatmap(seq, self.heatmap_dim, self.sigma)
 			seq = seq.reshape(seq.shape[0], -1)
 
-			return torch.tensor(seq)
+			return {'data': torch.tensor(seq), 'info': file_name}
 		else:
 			raise('Invalid mode!')
 

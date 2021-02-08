@@ -22,7 +22,8 @@ class VAEDMPModel(BaseModel):
 			opt (Option class)-- stores all the experiment flags, needs to be a subclass of BaseOptions
 		"""
 		BaseModel.__init__(self, opt)
-		self.loss_names = ['VAEDMP']
+		self.loss_names = ['VAEDMP', 'VAEDMPForce', 'VAEDMPZ']
+		#self.loss_names = ['VAEDMP']
 		self.model_names = ['VAEDMP']
 
 		# dimensions
@@ -44,6 +45,8 @@ class VAEDMPModel(BaseModel):
 		if self.isTrain:
 			#define loss functions
 			self.criterionVAEDMP = networks.VAEDMPLoss().to(self.device)
+			self.criterionVAEDMPForce = networks.VAEDMPForceLoss().to(self.device)
+			self.criterionVAEDMPZ = networks.VAEDMPZLoss().to(self.device)
 			#initialize optimizers
 			#self.optimizerVAE = torch.optim.SGD(self.netVAE.parameters(), lr = opt.lr)
 			self.optimizerVAEDMP = torch.optim.Adam(self.netVAEDMP.parameters(), lr = opt.lr, betas = (opt.beta1, 0.999), eps = 1e-6)
@@ -58,7 +61,8 @@ class VAEDMPModel(BaseModel):
 		Parameters:
 			input (dict): include the data itself and its metadata information.
 		"""
-		self.input = input.to(self.device).float()
+		self.input = input['data'].to(self.device).float()
+		self.file_name = input['info']
 
 	def get_model(self):
 		return self.netVAEDMP
@@ -67,13 +71,14 @@ class VAEDMPModel(BaseModel):
 	def forward(self):
 		""" Run forward pass, called by both functions <optimize_parameters> and <test>
 		"""
-		self.output, self.z, self.wd = self.netVAEDMP(self.input)
+		self.output, self.z, self.zz, self.wd, self.fs = self.netVAEDMP(self.input)
+		#self.output, self.z, self.wd = self.netVAEDMP(self.input)
 
 	def inference(self):
 		with torch.no_grad():
-			xs,zs,_ = self.netVAEDMP(self.input)
+			xs,zs,_,_,_ = self.netVAEDMP(self.input)
 
-		return zs, xs
+		return zs, xs, self.file_name
 
 	def decoder(self, z):
 		z = z.to(self.device)
@@ -95,8 +100,12 @@ class VAEDMPModel(BaseModel):
 		self.set_requires_grad(self.netVAEDMP, True)  # enable backprop
 		self.optimizerVAEDMP.zero_grad()              # set gradients to zero
 
-		self.loss_VAEDMP = self.criterionVAEDMP(self.wd, self.input, self.output)
-		self.loss_VAEDMP.backward()
+		self.loss_VAEDMP = self.criterionVAEDMP(self.wd, self.output, self.input)
+		self.loss_VAEDMPForce = self.criterionVAEDMPForce(self.fs)
+		self.loss_VAEDMPZ = self.criterionVAEDMPZ(self.z, self.zz)
+
+		self.loss = self.loss_VAEDMP + self.loss_VAEDMPForce + self.loss_VAEDMPZ
+		self.loss.backward()
 
 		self.optimizerVAEDMP.step()
 

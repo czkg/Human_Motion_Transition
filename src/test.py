@@ -9,17 +9,27 @@ from shutil import rmtree
 import torch
 import numpy as np
 from utils.utils import slerp
+from utils.utils import blend
 import time
+import pickle
 
 eps = 2e-1
 
-def postprocess(x, opt):
+def postprocess(output, gt, opt):
+	"""postprocess
+	Parameters:
+		output (array): output array of shape [len_sequence, x_dim]
+		gt (array): ground truth array of shape [len_sequence, x_dim]
+	"""
 	if opt.model == 'rtncl':
-		root = np.zeros((x.shape[0], 3))
-		x = np.concatenate((root, x), axis=1)
-		x = x.reshape(x.shape[0], -1, 3)
+		root = np.zeros((output.shape[0], 3))
+		output = np.concatenate((root, output), axis=1)
+		output = output.reshape(output.shape[0], -1, 3)
 
-		return x
+		return output
+	elif opt.model == 'rtn':
+		transition  = blend(output, gt[-1])
+		return transition
 	elif opt.model == 'vae2':
 		# dataset = opt.dataset_mode
 		# minmax_path = getattr(opt, dataset + '_minmax_path')
@@ -29,13 +39,15 @@ def postprocess(x, opt):
 
 		# x = mmin + (mmax - mmin) * x
 		root = np.zeros(3)
-		x = np.concatenate((root, x), axis=0)
-		x = x.reshape(-1, 3)
-		x = x[np.newaxis, ...]
+		output = np.concatenate((root, output), axis=0)
+		output = output.reshape(-1, 3)
+		output = output[np.newaxis, ...]
 
-		return x
+		return output
 	elif opt.model == 'vaedmp':
-		return x
+		return output
+	elif opt.model == 'rln':
+		return output
 
 
 if __name__ =='__main__':
@@ -68,21 +80,22 @@ if __name__ =='__main__':
 	if os.path.exists(output_path):
 		rmtree(output_path)
 	os.makedirs(output_path)
+	print("Testing...")
 
 	for i, data in enumerate(dataset):   # inner loop within one epoch
-		model.set_input(data)            # unpack data from dataset and apply preprocessing
-		_, x_out = model.inference()
-		x_out = x_out[0].data.cpu().numpy()
-		x_in = data[0].data.cpu().numpy()
+		model.set_input(data)
+		out, _, file_name = model.inference()
+		out = out[0].data.cpu().numpy()
+		gt = data['data'][0].data.cpu().numpy()
+		file_name = file_name[0]
 
-		x_out = postprocess(x_out, opt)
-		x_in = postprocess(x_in, opt)
+		out = postprocess(out, gt, opt)
 		
-		out_path = os.path.join(output_path, 'out.npy')
-		np.save(out_path, x_out)
-		in_path = os.path.join(output_path, 'in.npy')
-		np.save(in_path, x_in)
-		break
+		out_path = os.path.join(output_path, file_name)
+
+		out_data = {'data': out}
+		with open(out_path, 'wb') as f:
+			pickle.dump(out_data, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 	# test data
 	# if model_name == 'vaedmp' or model_name == 'vae2':

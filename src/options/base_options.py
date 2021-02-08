@@ -78,6 +78,11 @@ class BaseOptions():
         # H36M dataset parameters
         parser.add_argument('--h36m_mode', type=str, default='pose', help='choose pose or sequence')
 
+        # RTN parameters
+        parser.add_argument('--transition_len', type=int, default=19, help='transition length of input sequence')
+        parser.add_argument('--past_len', type=int, default=10, help='path length of input sequence')
+        parser.add_argument('--target_len', type=int, default=1, help='target length of input sequence')
+
         # special tasks
         self.initialized = True
         return parser

@@ -4,6 +4,7 @@ import os
 import scipy.io
 import torch
 from utils.utils import slerp
+import pickle
 
 
 
@@ -20,10 +21,12 @@ class PathDataset(BaseDataset):
 
 		BaseDataset.__init__(self, opt)
 		self.paths = []
+		self.names = []
 		files = os.listdir(self.root)
 		for f in files:
 			path = os.path.join(self.root, f)
 			self.paths.append(path)
+			self.names.append(f)
 
 		self.path_length = opt.path_length
 
@@ -40,9 +43,12 @@ class PathDataset(BaseDataset):
 			B(tensor) -- groundtruth path (a vector of poses)
 		"""
 
-		current_path = self.paths[index]
-		data = np.load(current_path)
-		A = torch.tensor(data)
+		file = self.paths[index]
+		file_name = self.names[index]
+		with open(file, 'rb') as f:
+			data = pickle.load(f, encoding='latin1')
+		data = data['data']
+		A = {'data': torch.tensor(data), 'info': file_name}
 
 		return A
 

@@ -6,6 +6,7 @@ import torch
 import scipy.io
 from shutil import rmtree
 from models import create_model
+import pickle
 
 
 if __name__ == '__main__':
@@ -28,15 +29,18 @@ if __name__ == '__main__':
 		rmtree(output_path)
 	os.makedirs(output_path)
 
-	file_list = glob(input_path + '/*.mat')
+	file_list = glob(input_path + '/*.pkl')
 	for f in file_list:
 		filename = f.split('/')[-1]
-		z = scipy.io.loadmat(f)['latent'][0]
+		with open(f, 'rb') as ff:
+			z = pickle.load(ff, encoding='latin1')
+		z = z['input']
 		z = torch.tensor(z)
 		x = model.decoder(z)
 		x = x.data.cpu().numpy()
 		filename = os.path.join(output_path, filename)
-		scipy.io.savemat(filename, {'heatmap': x})
+		with open(filename, 'wb') as ff:
+			pickle.dump(x, ff, protocol=pickle.HIGHEST_PROTOCOL)
 
 	print('Done!')
 

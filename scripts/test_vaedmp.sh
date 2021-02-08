@@ -2,26 +2,26 @@ set -ex
 GPU_ID=0
 # command
 CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/test.py \
-	--dataroot ../dataset/lafan/dataset \
+	--dataroot ../dataset/lafan/test_set \
 	--dataset_mode lafan \
 	--name vaedmp \
 	--model vaedmp \
 	--checkpoints_dir ../results \
-	--path_length 30 \
 	--sigma 0.05 \
-	--x_dim 63 \
-	--z_dim 16 \
-	--u_dim 16 \
+	--dim_heatmap 64 \
+	--num_joints 21 \
+	--z_dim 32 \
+	--u_dim 32 \
 	--hidden_dim 128 \
-	--noise_dim 16 \
+	--noise_dim 32 \
 	--transform_dim 64 \
-	--init_type xavier \
+	--init_type normal \
 	--init_gain 0.8 \
 	--batch_size 1 \
-	--epoch latest \
-	--input_path ../dataset/lafan/dataset \
-	--output_path ../res/vaedmp \
-	--lafan_minmax ../dataset/lafan/minmax.npy \
+	--epoch 100 \
+	--lafan_mode seq \
 	--lafan_window 30 \
-	--lafan_offset 10 \
-	--lafan_samplerate 5
+	--lafan_offset 5 \
+	--lafan_samplerate 5 \
+	--lafan_use_heatmap \
+	--output_path ../res/vaedmp

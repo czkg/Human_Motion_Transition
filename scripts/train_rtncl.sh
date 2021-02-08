@@ -4,27 +4,22 @@ GPU_ID=0
 CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--dataroot ../dataset/lafan/train_set \
 	--dataset_mode lafan \
-	--name vaedmp \
-	--model vaedmp \
+	--name rtncl \
+	--model rtncl \
 	--checkpoints_dir ../results \
 	--niter 70 \
 	--niter_decay 30 \
 	--sigma 0.05 \
-	--dim_heatmap 64 \
 	--num_joints 21 \
-	--z_dim 32 \
-	--u_dim 32 \
+	--x_dim 63 \
 	--hidden_dim 128 \
-	--noise_dim 32 \
-	--transform_dim 64 \
-	--lr 1e-4 \
+	--lr 1e-5 \
 	--beta1 0.9 \
-	--init_type kaiming \
+	--init_type normal \
 	--init_gain 0.8 \
 	--batch_size 16 \
 	--lafan_mode seq \
 	--lafan_window 30 \
-	--lafan_offset 5 \
+	--lafan_offset 10 \
 	--lafan_samplerate 5 \
-	--lafan_use_heatmap \
-	--no_html
+	--no_html \

@@ -52,12 +52,14 @@ class RTNCLModel(BaseModel):
 		Parameters:
 			input (dict): include the data itself and its metadata information.
 		"""
-		self.target = input.to(self.device).float()
 		self.input = input.to(self.device).float()
-		b = self.input[:,-1,...]
-		a = self.input[:,-2,...]
-		self.t = torch.cat((a, b), dim=-1)
-		self.input[:,10:-3,...] = 0.
+		self.target = input.to(self.device).float()
+
+		past_idx = range(10)
+		self.input = self.input[:, past_idx, ...]
+		self.target = self.target[:, 1:, ...]
+
+		self.t = self.target[:, -2:, ...]
 
 	def get_model(self):
 		return self.netRTNCL
