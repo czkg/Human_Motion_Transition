@@ -9,6 +9,7 @@ import pyqtgraph.opengl as gl
 import sys
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+import pickle
 
 
 parents = [-1, 0, 1, 2, 3, 0, 5, 6, 7, 0, 9, 10, 11, 12, 12, 14, 15, 16, 12, 18, 19, 20]
@@ -93,6 +94,7 @@ class PathWindow(QWidget):
 		self.rtn_txt.setText(self.rtn_name)
 
 class SelectWindow(QWidget):
+	procDone = QtCore.pyqtSignal(np.ndarray, np.ndarray)
 	def __init__(self):
 		super(SelectWindow, self).__init__()
 		self.initUI()
@@ -150,7 +152,7 @@ class SelectWindow(QWidget):
 	def openFileNamesDialog(self):
 		options = QFileDialog.Options()
 		options |= QFileDialog.DontUseNativeDialog
-		self.past_names, _ = QFileDialog.getOpenFileNames(self,"QFileDialog.getOpenFileNames()", "","All Files (*);;PKL Files (*.pkl)", options=options)
+		self.past_names, _ = QFileDialog.getOpenFileNames(self,"QFileDialog.getOpenFileNames()", "../dataset/lafan/test_poses","All Files (*);;PKL Files (*.pkl)", options=options)
 		for name in self.past_names:
 			if not self.pastListWidget.findItems(name, QtCore.Qt.MatchFixedString | QtCore.Qt.MatchCaseSensitive):
 				self.pastListWidget.addItem(name)
@@ -173,13 +175,16 @@ class SelectWindow(QWidget):
 		pastItems = []
 		targetItems = []
 		for index in range(self.pastListWidget.count()):
-			pastItems.append(self.pastListWidget.item(index))
+			pastItems.append(self.pastListWidget.item(index).text())
 		self.pastItems = np.asarray(pastItems)
 		for index in range(self.targetListWidget.count()):
-			targetItems.append(self.targetListWidget.item(index))
+			targetItems.append(self.targetListWidget.item(index).text())
+		self.targetItems = np.asarray(targetItems)
+
 		if len(pastItems) != 10 or len(targetItems) != 1:
 			self.showMessage()
 		else:
+			self.procDone.emit(self.pastItems, self.targetItems)
 			self.close()
 
 
@@ -231,8 +236,10 @@ class Viewer(QMainWindow):
 		bottom_hbox = QHBoxLayout()
 		# Left
 		leftLeftButton = QPushButton('<< Prev')
+		leftLeftButton.clicked.connect(self.leftLeftAction)
 		leftMiddleButton = QPushButton('Auto')
 		leftRightButton = QPushButton('Next >>')
+		leftRightButton.clicked.connect(self.leftRightAction)
 		left_bottom_hbox = QHBoxLayout()
 		left_bottom_hbox.addWidget(leftLeftButton)
 		left_bottom_hbox.addWidget(leftMiddleButton)
@@ -249,8 +256,10 @@ class Viewer(QMainWindow):
 
 		# Right window
 		rightLeftButton = QPushButton('<< Prev')
+		rightLeftButton.clicked.connect(self.rightLeftAction)
 		rightMiddleButton = QPushButton('Auto')
 		rightRightButton = QPushButton('Next >>')
+		rightRightButton.clicked.connect(self.rightRightAction)
 		right_bottom_hbox = QHBoxLayout()
 		right_bottom_hbox.addWidget(rightLeftButton)
 		right_bottom_hbox.addWidget(rightMiddleButton)
@@ -270,7 +279,8 @@ class Viewer(QMainWindow):
 		widget.setLayout(layout)
 		self.setCentralWidget(widget)
 
-		self.drawLeftItem()
+		self.current_past_item = 0
+		self.current_target_item = 0
 
 		self.show()
 
@@ -287,35 +297,78 @@ class Viewer(QMainWindow):
 	def showSelectWindow(self):
 		self.selectWindow = SelectWindow()
 		self.selectWindow.show()
+		self.selectWindow.procDone.connect(self.getItems)
+
+	def getItems(self, pitems, titems):
+		self.pastItems = []
+		self.targetItems = []
+		for i in pitems:
+			with open(i, 'rb') as f:
+				data = pickle.load(f, encoding='latin1')
+			root = np.zeros((1, 3))
+			data = np.concatenate((root, data), axis=0)
+			self.pastItems.append(data)
+		for i in titems:
+			with open(i, 'rb') as f:
+				data = pickle.load(f, encoding='latin1')
+			root = np.zeros((1, 3))
+			data = np.concatenate((root, data), axis=0)
+			self.targetItems.append(data)
+
+		self.pastItems = np.asarray(self.pastItems)
+		self.targetItems = np.asarray(self.targetItems)
+		self.drawLeftItem()
+		self.drawRightItem()
+
+	def leftLeftAction(self):
+		self.current_past_item = (self.current_past_item - 1) % 10
+		self.leftGLViewer.clear()
+		self.drawLeftItem()
+
+	def leftRightAction(self):
+		self.current_past_item = (self.current_past_item + 1) % 10
+		self.leftGLViewer.clear()
+		self.drawLeftItem()
+
+	def rightLeftAction(self):
+		self.current_target_item = (self.current_target_item - 1) % 1
+		self.rightGLViewer.clear()
+		self.drawRightItem()
+
+	def rightRightAction(self):
+		self.current_target_item = (self.current_target_item + 1) % 1
+		self.rightGLViewer.clear()
+		self.drawRightItem()
 
 	def drawLeftItem(self):
 		# init GLViewer
 		r = R.from_euler('xyz', [90, 0, 180], degrees=True)
 		rr = r.as_matrix()
-		self.data = np.matmul(self.data, rr)
+		data = self.pastItems[self.current_past_item]
+		data = np.matmul(data, rr)
 		self.leftGLViewer.opts['distance'] = 2
 		for i in range(1, 22):
-			xx = (self.data[i][0], self.data[i][1], self.data[i][2])
-			yy = (self.data[parents[i]][0], self.data[parents[i]][1], self.data[parents[i]][2])
+			xx = (data[i][0], data[i][1], data[i][2])
+			yy = (data[parents[i]][0], data[parents[i]][1], data[parents[i]][2])
 			pts = np.array([xx, yy])
 
-			center = (self.data[i] + self.data[parents[i]]) / 2.
-			length = np.linalg.norm(self.data[i] - self.data[parents[i]]) / 2.
+			center = (data[i] + data[parents[i]]) / 2.
+			length = np.linalg.norm(data[i] - data[parents[i]]) / 2.
 			radius = [0.02, 0.02]
 			md = gl.MeshData.cylinder(rows=40, cols=40, radius=radius, length=2*length)
 
 			m1 = gl.GLMeshItem(meshdata=md,
 							   smooth=True,
-							   color=(1, 0.5, 0.5, 0.5),
+							   color=(1, 0, 0.5, 1),
 							   shader="balloon",
 							   glOptions="additive")
 
-			v = self.data[i] - self.data[parents[i]]
+			v = data[i] - data[parents[i]]
 			theta = np.arctan2(v[1], v[0])
 			phi = np.arctan2(np.linalg.norm(v[:2]), v[2])
 
 			tr = pg.Transform3D()
-			tr.translate(*self.data[parents[i]])
+			tr.translate(*data[parents[i]])
 			tr.rotate(theta * 180 / np.pi, 0, 0, 1)
 			tr.rotate(phi * 180 / np.pi, 0, 1, 0)
 			tr.scale(1, 1, 1)
@@ -335,7 +388,7 @@ class Viewer(QMainWindow):
 		gz.translate(0, 0, -1)
 		self.leftGLViewer.addItem(gz)
 		self.points = gl.GLScatterPlotItem(
-			pos = self.data,
+			pos = data,
 			color = pg.glColor((0, 255, 0)),
 			size=5
 			)
@@ -343,36 +396,109 @@ class Viewer(QMainWindow):
 
 
 	def drawRightItem(self):
-		# glView
+		# init GLViewer
 		r = R.from_euler('xyz', [90, 0, 180], degrees=True)
 		rr = r.as_matrix()
-		self.data = np.matmul(self.data, rr)
+		data = self.targetItems[self.current_target_item]
+		data = np.matmul(data, rr)
 		self.rightGLViewer.opts['distance'] = 2
+		for i in range(1, 22):
+			xx = (data[i][0], data[i][1], data[i][2])
+			yy = (data[parents[i]][0], data[parents[i]][1], data[parents[i]][2])
+			pts = np.array([xx, yy])
+
+			center = (data[i] + data[parents[i]]) / 2.
+			length = np.linalg.norm(data[i] - data[parents[i]]) / 2.
+			radius = [0.02, 0.02]
+			md = gl.MeshData.cylinder(rows=40, cols=40, radius=radius, length=2*length)
+
+			m1 = gl.GLMeshItem(meshdata=md,
+							   smooth=True,
+							   color=(1, 0, 0.5, 1),
+							   shader="balloon",
+							   glOptions="additive")
+
+			v = data[i] - data[parents[i]]
+			theta = np.arctan2(v[1], v[0])
+			phi = np.arctan2(np.linalg.norm(v[:2]), v[2])
+
+			tr = pg.Transform3D()
+			tr.translate(*data[parents[i]])
+			tr.rotate(theta * 180 / np.pi, 0, 0, 1)
+			tr.rotate(phi * 180 / np.pi, 0, 1, 0)
+			tr.scale(1, 1, 1)
+			tr.translate(0, 0, 0)
+			m1.setTransform(tr)
+
+			self.rightGLViewer.addItem(m1)
+
+			# self.lines = gl.GLLinePlotItem(
+			# 	pos = pts,
+			# 	color = pg.glColor((255, 0, 0)),
+			# 	width=5
+			# )
+			# self.rightGLViewer.addItem(self.lines)
 
 		gz = gl.GLGridItem()
 		gz.translate(0, 0, -1)
 		self.rightGLViewer.addItem(gz)
 		self.points = gl.GLScatterPlotItem(
-			pos = self.data,
+			pos = data,
 			color = pg.glColor((0, 255, 0)),
-			size=15
+			size=5
 			)
 		self.rightGLViewer.addItem(self.points)
 
 	def drawMiddleItem(self):
-		# glView
+		# init GLViewer
 		r = R.from_euler('xyz', [90, 0, 180], degrees=True)
 		rr = r.as_matrix()
-		self.data = np.matmul(self.data, rr)
+		data = np.matmul(self.data, rr)
 		self.middleGLViewer.opts['distance'] = 2
+		for i in range(1, 22):
+			xx = (data[i][0], data[i][1], data[i][2])
+			yy = (data[parents[i]][0], data[parents[i]][1], data[parents[i]][2])
+			pts = np.array([xx, yy])
+
+			center = (data[i] + data[parents[i]]) / 2.
+			length = np.linalg.norm(data[i] - data[parents[i]]) / 2.
+			radius = [0.02, 0.02]
+			md = gl.MeshData.cylinder(rows=40, cols=40, radius=radius, length=2*length)
+
+			m1 = gl.GLMeshItem(meshdata=md,
+							   smooth=True,
+							   color=(1, 0, 0.5, 1),
+							   shader="balloon",
+							   glOptions="additive")
+
+			v = data[i] - data[parents[i]]
+			theta = np.arctan2(v[1], v[0])
+			phi = np.arctan2(np.linalg.norm(v[:2]), v[2])
+
+			tr = pg.Transform3D()
+			tr.translate(*data[parents[i]])
+			tr.rotate(theta * 180 / np.pi, 0, 0, 1)
+			tr.rotate(phi * 180 / np.pi, 0, 1, 0)
+			tr.scale(1, 1, 1)
+			tr.translate(0, 0, 0)
+			m1.setTransform(tr)
+
+			self.middleGLViewer.addItem(m1)
+
+			# self.lines = gl.GLLinePlotItem(
+			# 	pos = pts,
+			# 	color = pg.glColor((255, 0, 0)),
+			# 	width=5
+			# )
+			# self.middleGLViewer.addItem(self.lines)
 
 		gz = gl.GLGridItem()
 		gz.translate(0, 0, -1)
 		self.middleGLViewer.addItem(gz)
 		self.points = gl.GLScatterPlotItem(
-			pos = self.data,
+			pos = data,
 			color = pg.glColor((0, 255, 0)),
-			size=15
+			size=5
 			)
 		self.middleGLViewer.addItem(self.points)
 
