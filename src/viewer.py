@@ -10,18 +10,19 @@ import sys
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import pickle
+from pathlib import Path
 
 import torch
 import torch.nn as nn
 
-from ..src import test
+from test import run_gui
+from options.test_options import TestOptions
+from utils.calculate_3Dheatmap import calculate_3Dheatmap
 
 parents = [-1, 0, 1, 2, 3, 0, 5, 6, 7, 0, 9, 10, 11, 12, 12, 14, 15, 16, 12, 18, 19, 20]
 
 class fVAE:
 	def __init__(self):
-		self.dataroot = None
-		self.dataset_mode = 'lafan'
 		self.name = 'vaedmp'
 		self.model = 'vaedmp'
 		self.checkpoints_dir = None
@@ -35,18 +36,10 @@ class fVAE:
 		self.transform_dim = '64'
 		self.init_type = 'normal'
 		self.init_gain = '0.8'
-		self.batch_size = '1'
-		self.lafan_mode = 'seq'
-		self.lafan_window = '30'
-		self.lafan_offset = '5'
-		self.lafan_samplerate = '5'
-		self.lafan_use_heatmap = 'True'
 		self.output_path = None
 
 class RTN():
 	def __init__(self):
-		self.dataroot = None
-		self.dataset_mode = 'path'
 		self.name = 'rtn'
 		self.model = 'rtn'
 		self.checkpoints_dir = None
@@ -58,7 +51,6 @@ class RTN():
 		self.epoch = '100'
 		self.init_type = 'xavier'
 		self.init_gain = '0.8'
-		self.batch_size = '1'
 		self.output_path = None
 
 class SetValueWindow(QWidget):
@@ -91,39 +83,6 @@ class SetValueWindow(QWidget):
 		self.procDone.emit(self.lineEdit.text(), self.idx)
 		self.close()
 
-class SetBoolValueWindow(QWidget):
-	procDone = QtCore.pyqtSignal(str)
-	def __init__(self):
-		super(SetBoolValueWindow, self).__init__()
-		self.initUI()
-
-	def initUI(self):
-		self.resize(200, 80)
-		self.center()
-		self.setWindowTitle('Set Bool Value')
-
-		true_button = QPushButton('True')
-		false_button = QPushButton('False')
-		true_button.clicked.connect(self.sendTrue)
-		false_button.clicked.connect(self.sendFalse)
-		layout = QHBoxLayout()
-		layout.addWidget(true_button)
-		layout.addWidget(false_button)
-		self.setLayout(layout)
-
-	def center(self):
-		qr = self.frameGeometry()
-		cp = QDesktopWidget().availableGeometry().center()
-		qr.moveCenter(cp)
-		self.move(qr.topLeft())
-
-	def sendTrue(self):
-		self.procDone.emit('True')
-		self.close()
-
-	def sendFalse(self):
-		self.procDone.emit('False')
-		self.close()
 
 class fVAEWindow(QWidget):
 	procDone = QtCore.pyqtSignal(list)
@@ -138,21 +97,16 @@ class fVAEWindow(QWidget):
 		self.setWindowTitle('Set fVAE')
 
 		# Push Button
-		dataroot_btn = QPushButton('dataroot')
 		checkpoints_dir_btn = QPushButton('checkpoints dir')
 		output_path_btn = QPushButton('output dir')
-		dataroot_btn.setFixedHeight(25)
 		checkpoints_dir_btn.setFixedHeight(25)
 		output_path_btn.setFixedHeight(25)
-		dataroot_btn.setFixedWidth(120)
 		checkpoints_dir_btn.setFixedWidth(120)
 		output_path_btn.setFixedWidth(120)
-		dataroot_btn.clicked.connect(lambda: self.openFileNameDialog(0))
-		checkpoints_dir_btn.clicked.connect(lambda: self.openFileNameDialog(1))
-		output_path_btn.clicked.connect(lambda: self.openFileNameDialog(2))
+		checkpoints_dir_btn.clicked.connect(lambda: self.openFileNameDialog())
+		output_path_btn.clicked.connect(lambda: self.openDirectory())
 
 		# with default values
-		dataset_mode_btn = QPushButton('dataset_mode')
 		name_btn = QPushButton('name')
 		model_btn = QPushButton('model')
 		sigma_btn = QPushButton('sigma')
@@ -165,14 +119,7 @@ class fVAEWindow(QWidget):
 		transform_dim_btn = QPushButton('transform_dim')
 		init_type_btn = QPushButton('init_type')
 		init_gain_btn = QPushButton('init_gain')
-		batch_size_btn = QPushButton('batch_size')
-		lafan_mode_btn = QPushButton('lafan_mode')
-		lafan_window_btn = QPushButton('lafan_window')
-		lafan_offset_btn = QPushButton('lafan_offset')
-		lafan_samplerate_btn = QPushButton('lafan_samplerate')
-		lafan_use_heatmap_btn = QPushButton('lafan_use_heatmap')
 
-		dataset_mode_btn.setFixedHeight(25)
 		name_btn.setFixedHeight(25)
 		model_btn.setFixedHeight(25)
 		sigma_btn.setFixedHeight(25)
@@ -185,14 +132,7 @@ class fVAEWindow(QWidget):
 		transform_dim_btn.setFixedHeight(25)
 		init_type_btn.setFixedHeight(25)
 		init_gain_btn.setFixedHeight(25)
-		batch_size_btn.setFixedHeight(25)
-		lafan_mode_btn.setFixedHeight(25)
-		lafan_window_btn.setFixedHeight(25)
-		lafan_offset_btn.setFixedHeight(25)
-		lafan_samplerate_btn.setFixedHeight(25)
-		lafan_use_heatmap_btn.setFixedHeight(25)
 
-		dataset_mode_btn.setFixedWidth(120)
 		name_btn.setFixedWidth(120)
 		model_btn.setFixedWidth(120)
 		sigma_btn.setFixedWidth(120)
@@ -205,46 +145,30 @@ class fVAEWindow(QWidget):
 		transform_dim_btn.setFixedWidth(120)
 		init_type_btn.setFixedWidth(120)
 		init_gain_btn.setFixedWidth(120)
-		batch_size_btn.setFixedWidth(120)
-		lafan_mode_btn.setFixedWidth(120)
-		lafan_window_btn.setFixedWidth(120)
-		lafan_offset_btn.setFixedWidth(120)
-		lafan_samplerate_btn.setFixedWidth(120)
-		lafan_use_heatmap_btn.setFixedWidth(120)
 
-		dataset_mode_btn.clicked.connect(lambda: self.setValue(0))
-		name_btn.clicked.connect(lambda: self.setValue(1))
-		model_btn.clicked.connect(lambda: self.setValue(2))
-		sigma_btn.clicked.connect(lambda: self.setValue(3))
-		dim_heatmap_btn.clicked.connect(lambda: self.setValue(4))
-		num_joints_btn.clicked.connect(lambda: self.setValue(5))
-		z_dim_btn.clicked.connect(lambda: self.setValue(6))
-		u_dim_btn.clicked.connect(lambda: self.setValue(7))
-		hidden_dim_btn.clicked.connect(lambda: self.setValue(8))
-		noise_dim_btn.clicked.connect(lambda: self.setValue(9))
-		transform_dim_btn.clicked.connect(lambda: self.setValue(10))
-		init_type_btn.clicked.connect(lambda: self.setValue(11))
-		init_gain_btn.clicked.connect(lambda: self.setValue(12))
-		batch_size_btn.clicked.connect(lambda: self.setValue(13))
-		lafan_mode_btn.clicked.connect(lambda: self.setValue(14))
-		lafan_window_btn.clicked.connect(lambda: self.setValue(15))
-		lafan_offset_btn.clicked.connect(lambda: self.setValue(16))
-		lafan_samplerate_btn.clicked.connect(lambda: self.setValue(17))
-		lafan_use_heatmap_btn.clicked.connect(self.setBoolValue)
+		name_btn.clicked.connect(lambda: self.setValue(0))
+		model_btn.clicked.connect(lambda: self.setValue(1))
+		sigma_btn.clicked.connect(lambda: self.setValue(2))
+		dim_heatmap_btn.clicked.connect(lambda: self.setValue(3))
+		num_joints_btn.clicked.connect(lambda: self.setValue(4))
+		z_dim_btn.clicked.connect(lambda: self.setValue(5))
+		u_dim_btn.clicked.connect(lambda: self.setValue(6))
+		hidden_dim_btn.clicked.connect(lambda: self.setValue(7))
+		noise_dim_btn.clicked.connect(lambda: self.setValue(8))
+		transform_dim_btn.clicked.connect(lambda: self.setValue(9))
+		init_type_btn.clicked.connect(lambda: self.setValue(10))
+		init_gain_btn.clicked.connect(lambda: self.setValue(11))
 
 		accept_btn = QPushButton('OK')
 		accept_btn.clicked.connect(self.getAllOpts)
 
 		# Display text
-		self.dataroot_dtxt = QLineEdit()
 		self.checkpoints_dir_dtxt = QLineEdit()
 		self.output_path_dtxt = QLineEdit()
-		self.dataroot_dtxt.setReadOnly(True)
 		self.checkpoints_dir_dtxt.setReadOnly(True)
 		self.output_path_dtxt.setReadOnly(True)
 
 		# with default values
-		self.dataset_mode_dtxt = QLineEdit()
 		self.name_dtxt = QLineEdit()
 		self.model_dtxt = QLineEdit()
 		self.sigma_dtxt = QLineEdit()
@@ -257,14 +181,7 @@ class fVAEWindow(QWidget):
 		self.transform_dim_dtxt = QLineEdit()
 		self.init_type_dtxt = QLineEdit()
 		self.init_gain_dtxt = QLineEdit()
-		self.batch_size_dtxt = QLineEdit()
-		self.lafan_mode_dtxt = QLineEdit()
-		self.lafan_window_dtxt = QLineEdit()
-		self.lafan_offset_dtxt = QLineEdit()
-		self.lafan_samplerate_dtxt = QLineEdit()
-		self.lafan_use_heatmap_dtxt = QLineEdit()
 
-		self.dataset_mode_dtxt.setText(self.fvae.dataset_mode)
 		self.name_dtxt.setText(self.fvae.name)
 		self.model_dtxt.setText(self.fvae.model)
 		self.sigma_dtxt.setText(self.fvae.sigma)
@@ -277,14 +194,7 @@ class fVAEWindow(QWidget):
 		self.transform_dim_dtxt.setText(self.fvae.transform_dim)
 		self.init_type_dtxt.setText(self.fvae.init_type)
 		self.init_gain_dtxt.setText(self.fvae.init_gain)
-		self.batch_size_dtxt.setText(self.fvae.batch_size)
-		self.lafan_mode_dtxt.setText(self.fvae.lafan_mode)
-		self.lafan_window_dtxt.setText(self.fvae.lafan_window)
-		self.lafan_offset_dtxt.setText(self.fvae.lafan_offset)
-		self.lafan_samplerate_dtxt.setText(self.fvae.lafan_samplerate)
-		self.lafan_use_heatmap_dtxt.setText(self.fvae.lafan_use_heatmap)
 
-		self.dataset_mode_dtxt.setReadOnly(True)
 		self.name_dtxt.setReadOnly(True)
 		self.model_dtxt.setReadOnly(True)
 		self.sigma_dtxt.setReadOnly(True)
@@ -297,22 +207,8 @@ class fVAEWindow(QWidget):
 		self.transform_dim_dtxt.setReadOnly(True)
 		self.init_type_dtxt.setReadOnly(True)
 		self.init_gain_dtxt.setReadOnly(True)
-		self.batch_size_dtxt.setReadOnly(True)
-		self.lafan_mode_dtxt.setReadOnly(True)
-		self.lafan_window_dtxt.setReadOnly(True)
-		self.lafan_offset_dtxt.setReadOnly(True)
-		self.lafan_samplerate_dtxt.setReadOnly(True)
-		self.lafan_use_heatmap_dtxt.setReadOnly(True)
 
 		# Layout
-		dataroot_hbox = QHBoxLayout()
-		dataroot_hbox.addWidget(dataroot_btn)
-		dataroot_hbox.addWidget(self.dataroot_dtxt)
-		
-		dataset_mode_hbox = QHBoxLayout()
-		dataset_mode_hbox.addWidget(dataset_mode_btn)
-		dataset_mode_hbox.addWidget(self.dataset_mode_dtxt)
-		
 		name_hbox = QHBoxLayout()
 		name_hbox.addWidget(name_btn)
 		name_hbox.addWidget(self.name_dtxt)
@@ -364,38 +260,12 @@ class fVAEWindow(QWidget):
 		init_gain_hbox = QHBoxLayout()
 		init_gain_hbox.addWidget(init_gain_btn)
 		init_gain_hbox.addWidget(self.init_gain_dtxt)
-		
-		batch_size_hbox = QHBoxLayout()
-		batch_size_hbox.addWidget(batch_size_btn)
-		batch_size_hbox.addWidget(self.batch_size_dtxt)
-		
-		lafan_mode_hbox = QHBoxLayout()
-		lafan_mode_hbox.addWidget(lafan_mode_btn)
-		lafan_mode_hbox.addWidget(self.lafan_mode_dtxt)
-		
-		lafan_window_hbox = QHBoxLayout()
-		lafan_window_hbox.addWidget(lafan_window_btn)
-		lafan_window_hbox.addWidget(self.lafan_window_dtxt)
-
-		lafan_offset_hbox = QHBoxLayout()
-		lafan_offset_hbox.addWidget(lafan_offset_btn)
-		lafan_offset_hbox.addWidget(self.lafan_offset_dtxt)
-		
-		lafan_samplerate_hbox = QHBoxLayout()
-		lafan_samplerate_hbox.addWidget(lafan_samplerate_btn)
-		lafan_samplerate_hbox.addWidget(self.lafan_samplerate_dtxt)
-
-		lafan_use_heatmap_hbox = QHBoxLayout()
-		lafan_use_heatmap_hbox.addWidget(lafan_use_heatmap_btn)
-		lafan_use_heatmap_hbox.addWidget(self.lafan_use_heatmap_dtxt)
 
 		output_path_hbox = QHBoxLayout()
 		output_path_hbox.addWidget(output_path_btn)
 		output_path_hbox.addWidget(self.output_path_dtxt)
 
 		layout = QVBoxLayout()
-		layout.addLayout(dataroot_hbox)
-		layout.addLayout(dataset_mode_hbox)
 		layout.addLayout(name_hbox)
 		layout.addLayout(model_hbox)
 		layout.addLayout(checkpoints_dir_hbox)
@@ -409,12 +279,6 @@ class fVAEWindow(QWidget):
 		layout.addLayout(transform_dim_hbox)
 		layout.addLayout(init_type_hbox)
 		layout.addLayout(init_gain_hbox)
-		layout.addLayout(batch_size_hbox)
-		layout.addLayout(lafan_mode_hbox)
-		layout.addLayout(lafan_window_hbox)
-		layout.addLayout(lafan_offset_hbox)
-		layout.addLayout(lafan_samplerate_hbox)
-		layout.addLayout(lafan_use_heatmap_hbox)
 		layout.addLayout(output_path_hbox)
 		layout.addWidget(accept_btn)
 		self.setLayout(layout)
@@ -430,73 +294,51 @@ class fVAEWindow(QWidget):
 		self.setValueWindow.show()
 		self.setValueWindow.procDone.connect(self.updateTxt)
 
-	def setBoolValue(self):
-		self.setBoolValueWindow = SetBoolValueWindow()
-		self.setBoolValueWindow.show()
-		self.setBoolValueWindow.procDone.connect(self.updateBoolTxt)
-
 	def updateTxt(self, txt, idx):
 		if idx == 0:
-			self.dataset_mode_dtxt.setText(txt)
-		elif idx == 1:
 			self.name_dtxt.setText(txt)
-		elif idx == 2:
+		elif idx == 1:
 			self.model_dtxt.setText(txt)
-		elif idx == 3:
+		elif idx == 2:
 			self.sigma_dtxt.setText(txt)
-		elif idx == 4:
+		elif idx == 3:
 			self.dim_heatmap_dtxt.setText(txt)
-		elif idx == 5:
+		elif idx == 4:
 			self.num_joints_dtxt.setText(txt)
-		elif idx == 6:
+		elif idx == 5:
 			self.z_dim_dtxt.setText(txt)
-		elif idx == 7:
+		elif idx == 6:
 			self.u_dim_dtxt.setText(txt)
-		elif idx == 8:
+		elif idx == 7:
 			self.hidden_dim_dtxt.setText(txt)
-		elif idx == 9:
+		elif idx == 8:
 			self.noise_dim_dtxt.setText(txt)
-		elif idx == 10:
+		elif idx == 9:
 			self.transform_dim_dtxt.setText(txt)
-		elif idx == 11:
+		elif idx == 10:
 			self.init_type_dtxt.setText(txt)
-		elif idx == 12:
+		elif idx == 11:
 			self.init_gain_dtxt.setText(txt)
-		elif idx == 13:
-			self.batch_size_dtxt.setText(txt)
-		elif idx == 14:
-			self.lafan_mode_dtxt.setText(txt)
-		elif idx == 15:
-			self.lafan_window_dtxt.setText(txt)
-		elif idx == 16:
-			self.lafan_offset_dtxt.setText(txt)
-		elif idx == 17:
-			self.lafan_samplerate_dtxt.setText(txt)
 
-	def updateBoolTxt(self, txt):
-		self.lafan_use_heatmap_dtxt.setText(txt)
 
-	def openFileNameDialog(self, type):
+	def openFileNameDialog(self):
 		options = QFileDialog.Options()
 		options |= QFileDialog.DontUseNativeDialog
-		name, _ = QFileDialog.getOpenFileName(self,"QFileDialog.getOpenFileName()", "","All Files (*);;PTH Files (*.pth)", options=options)
-		if type == 0:
-			self.dataroot_dtxt.setText(name)
-		elif type == 1:
-			self.checkpoints_dir_dtxt.setText(name)
-		elif type == 2:
-			self.output_path_dtxt.setText(name)
+		name, _ = QFileDialog.getOpenFileName(self,"Select files", "/home/cz/cs/PG19/results","All Files (*);;PTH Files (*.pth)", options=options)
+		self.checkpoints_dir_dtxt.setText(name)
+
+	def openDirectory(self):
+		path = QFileDialog.getExistingDirectory(self, 'Select directory', '/home/cz/cs/PG19/res')
+		self.output_path_dtxt.setText(path)
 
 	def showMessage(self):
 		QMessageBox.about(self, 'Warning', 'Opts cannot be empty!')
 
 	def getAllOpts(self):
 		params = []
-		dataroot = self.dataroot_dtxt.text()
 		checkpoints_dir = self.checkpoints_dir_dtxt.text()
 		output_path = self.output_path_dtxt.text()
 
-		dataset_mode = self.dataset_mode_dtxt.text()
 		name = self.name_dtxt.text()
 		model = self.model_dtxt.text()
 		sigma = self.sigma_dtxt.text()
@@ -509,15 +351,7 @@ class fVAEWindow(QWidget):
 		transform_dim = self.transform_dim_dtxt.text()
 		init_type = self.init_type_dtxt.text()
 		init_gain = self.init_gain_dtxt.text()
-		batch_size = self.batch_size_dtxt.text()
-		lafan_mode = self.lafan_mode_dtxt.text()
-		lafan_window = self.lafan_window_dtxt.text()
-		lafan_offset = self.lafan_offset_dtxt.text()
-		lafan_samplerate = self.lafan_samplerate_dtxt.text()
-		lafan_use_heatmap = self.lafan_use_heatmap_dtxt.text()
 
-		params.append(dataroot)
-		params.append(dataset_mode)
 		params.append(name)
 		params.append(model)
 		params.append(checkpoints_dir)
@@ -531,15 +365,9 @@ class fVAEWindow(QWidget):
 		params.append(transform_dim)
 		params.append(init_type)
 		params.append(init_gain)
-		params.append(batch_size)
-		params.append(lafan_mode)
-		params.append(lafan_window)
-		params.append(lafan_offset)
-		params.append(lafan_samplerate)
-		params.append(lafan_use_heatmap)
 		params.append(output_path)
 
-		if len(dataroot) == 0 or len(checkpoints_dir) == 0 or len(output_path) == 0:
+		if len(checkpoints_dir) == 0 or len(output_path) == 0:
 			self.showMessage()
 		else:
 			self.procDone.emit(params)
@@ -559,21 +387,16 @@ class RTNWindow(QWidget):
 		self.setWindowTitle('Set RTN')
 
 		# Push Button
-		dataroot_btn = QPushButton('dataroot')
 		checkpoints_dir_btn = QPushButton('checkpoints dir')
 		output_path_btn = QPushButton('output dir')
-		dataroot_btn.setFixedHeight(25)
 		checkpoints_dir_btn.setFixedHeight(25)
 		output_path_btn.setFixedHeight(25)
-		dataroot_btn.setFixedWidth(120)
 		checkpoints_dir_btn.setFixedWidth(120)
 		output_path_btn.setFixedWidth(120)
-		dataroot_btn.clicked.connect(lambda: self.openFileNameDialog(0))
-		checkpoints_dir_btn.clicked.connect(lambda: self.openFileNameDialog(1))
-		output_path_btn.clicked.connect(lambda: self.openFileNameDialog(2))
+		checkpoints_dir_btn.clicked.connect(lambda: self.openFileNameDialog())
+		output_path_btn.clicked.connect(lambda: self.openDirectory())
 
 		# with default values
-		dataset_mode_btn = QPushButton('dataset_mode')
 		name_btn = QPushButton('name')
 		model_btn = QPushButton('model')
 		sigma_btn = QPushButton('sigma')
@@ -583,9 +406,7 @@ class RTNWindow(QWidget):
 		hidden_dim_btn = QPushButton('hidden_dim_btn')
 		init_type_btn = QPushButton('init_type')
 		init_gain_btn = QPushButton('init_gain')
-		batch_size_btn = QPushButton('batch_size')
 
-		dataset_mode_btn.setFixedHeight(25)
 		name_btn.setFixedHeight(25)
 		model_btn.setFixedHeight(25)
 		sigma_btn.setFixedHeight(25)
@@ -595,9 +416,7 @@ class RTNWindow(QWidget):
 		hidden_dim_btn.setFixedHeight(25)
 		init_type_btn.setFixedHeight(25)
 		init_gain_btn.setFixedHeight(25)
-		batch_size_btn.setFixedHeight(25)
 
-		dataset_mode_btn.setFixedWidth(120)
 		name_btn.setFixedWidth(120)
 		model_btn.setFixedWidth(120)
 		sigma_btn.setFixedWidth(120)
@@ -607,33 +426,27 @@ class RTNWindow(QWidget):
 		hidden_dim_btn.setFixedWidth(120)
 		init_type_btn.setFixedWidth(120)
 		init_gain_btn.setFixedWidth(120)
-		batch_size_btn.setFixedWidth(120)
 
-		dataset_mode_btn.clicked.connect(lambda: self.setValue(0))
-		name_btn.clicked.connect(lambda: self.setValue(1))
-		model_btn.clicked.connect(lambda: self.setValue(2))
-		sigma_btn.clicked.connect(lambda: self.setValue(3))
-		num_joints_btn.clicked.connect(lambda: self.setValue(4))
-		x_dim_btn.clicked.connect(lambda: self.setValue(5))
-		z_dim_btn.clicked.connect(lambda: self.setValue(6))
-		hidden_dim_btn.clicked.connect(lambda: self.setValue(7))
-		init_type_btn.clicked.connect(lambda: self.setValue(8))
-		init_gain_btn.clicked.connect(lambda: self.setValue(9))
-		batch_size_btn.clicked.connect(lambda: self.setValue(10))
+		name_btn.clicked.connect(lambda: self.setValue(0))
+		model_btn.clicked.connect(lambda: self.setValue(1))
+		sigma_btn.clicked.connect(lambda: self.setValue(2))
+		num_joints_btn.clicked.connect(lambda: self.setValue(3))
+		x_dim_btn.clicked.connect(lambda: self.setValue(4))
+		z_dim_btn.clicked.connect(lambda: self.setValue(5))
+		hidden_dim_btn.clicked.connect(lambda: self.setValue(6))
+		init_type_btn.clicked.connect(lambda: self.setValue(7))
+		init_gain_btn.clicked.connect(lambda: self.setValue(8))
 
 		accept_btn = QPushButton('OK')
 		accept_btn.clicked.connect(self.getAllOpts)
 
 		# Text Edit
-		self.dataroot_dtxt = QLineEdit()
 		self.checkpoints_dir_dtxt = QLineEdit()
 		self.output_path_dtxt = QLineEdit()
-		self.dataroot_dtxt.setReadOnly(True)
 		self.checkpoints_dir_dtxt.setReadOnly(True)
 		self.output_path_dtxt.setReadOnly(True)
 
 		# with default values
-		self.dataset_mode_dtxt = QLineEdit()
 		self.name_dtxt = QLineEdit()
 		self.model_dtxt = QLineEdit()
 		self.sigma_dtxt = QLineEdit()
@@ -643,9 +456,7 @@ class RTNWindow(QWidget):
 		self.z_dim_dtxt = QLineEdit()
 		self.init_type_dtxt = QLineEdit()
 		self.init_gain_dtxt = QLineEdit()
-		self.batch_size_dtxt = QLineEdit()
 
-		self.dataset_mode_dtxt.setText(self.rtn.dataset_mode)
 		self.name_dtxt.setText(self.rtn.name)
 		self.model_dtxt.setText(self.rtn.model)
 		self.sigma_dtxt.setText(self.rtn.sigma)
@@ -655,9 +466,7 @@ class RTNWindow(QWidget):
 		self.hidden_dim_dtxt.setText(self.rtn.hidden_dim)
 		self.init_type_dtxt.setText(self.rtn.init_type)
 		self.init_gain_dtxt.setText(self.rtn.init_gain)
-		self.batch_size_dtxt.setText(self.rtn.batch_size)
 
-		self.dataset_mode_dtxt.setReadOnly(True)
 		self.name_dtxt.setReadOnly(True)
 		self.model_dtxt.setReadOnly(True)
 		self.sigma_dtxt.setReadOnly(True)
@@ -667,17 +476,8 @@ class RTNWindow(QWidget):
 		self.hidden_dim_dtxt.setReadOnly(True)
 		self.init_type_dtxt.setReadOnly(True)
 		self.init_gain_dtxt.setReadOnly(True)
-		self.batch_size_dtxt.setReadOnly(True)
 
 		# Layout
-		dataroot_hbox = QHBoxLayout()
-		dataroot_hbox.addWidget(dataroot_btn)
-		dataroot_hbox.addWidget(self.dataroot_dtxt)
-		
-		dataset_mode_hbox = QHBoxLayout()
-		dataset_mode_hbox.addWidget(dataset_mode_btn)
-		dataset_mode_hbox.addWidget(self.dataset_mode_dtxt)
-		
 		name_hbox = QHBoxLayout()
 		name_hbox.addWidget(name_btn)
 		name_hbox.addWidget(self.name_dtxt)
@@ -717,10 +517,6 @@ class RTNWindow(QWidget):
 		init_gain_hbox = QHBoxLayout()
 		init_gain_hbox.addWidget(init_gain_btn)
 		init_gain_hbox.addWidget(self.init_gain_dtxt)
-		
-		batch_size_hbox = QHBoxLayout()
-		batch_size_hbox.addWidget(batch_size_btn)
-		batch_size_hbox.addWidget(self.batch_size_dtxt)
 
 		output_path_hbox = QHBoxLayout()
 		output_path_hbox.addWidget(output_path_btn)
@@ -728,8 +524,6 @@ class RTNWindow(QWidget):
 
 
 		layout = QVBoxLayout()
-		layout.addLayout(dataroot_hbox)
-		layout.addLayout(dataset_mode_hbox)
 		layout.addLayout(name_hbox)
 		layout.addLayout(model_hbox)
 		layout.addLayout(checkpoints_dir_hbox)
@@ -740,7 +534,6 @@ class RTNWindow(QWidget):
 		layout.addLayout(hidden_dim_hbox)
 		layout.addLayout(init_type_hbox)
 		layout.addLayout(init_gain_hbox)
-		layout.addLayout(batch_size_hbox)
 		layout.addLayout(output_path_hbox)
 		layout.addWidget(accept_btn)
 		self.setLayout(layout)
@@ -759,49 +552,42 @@ class RTNWindow(QWidget):
 
 	def updateTxt(self, txt, idx):
 		if idx == 0:
-			self.dataset_mode_dtxt.setText(txt)
-		elif idx == 1:
 			self.name_dtxt.setText(txt)
-		elif idx == 2:
+		elif idx == 1:
 			self.model_dtxt.setText(txt)
-		elif idx == 3:
+		elif idx == 2:
 			self.sigma_dtxt.setText(txt)
-		elif idx == 4:
+		elif idx == 3:
 			self.num_joints_dtxt.setText(txt)
-		elif idx == 5:
+		elif idx == 4:
 			self.x_dim_dtxt.setText(txt)
-		elif idx == 6:
+		elif idx == 5:
 			self.z_dim_dtxt.setText(txt)
-		elif idx == 7:
+		elif idx == 6:
 			self.hidden_dim_dtxt.setText(txt)
-		elif idx == 8:
+		elif idx == 7:
 			self.init_type_dtxt.setText(txt)
-		elif idx == 9:
+		elif idx == 8:
 			self.init_gain_dtxt.setText(txt)
-		elif idx == 10:
-			self.batch_size_dtxt.setText(txt)
 
-	def openFileNameDialog(self, type):
+	def openFileNameDialog(self):
 		options = QFileDialog.Options()
 		options |= QFileDialog.DontUseNativeDialog
-		name, _ = QFileDialog.getOpenFileName(self,"QFileDialog.getOpenFileName()", "","All Files (*);;PTH Files (*.pth)", options=options)
-		if type == 0:
-			self.dataroot_dtxt.setText(name)
-		elif type == 1:
-			self.checkpoints_dir_dtxt.setText(name)
-		elif type == 2:
-			self.output_path_dtxt.setText(name)
+		name, _ = QFileDialog.getOpenFileName(self,"Select files", "/home/cz/cs/PG19/results","All Files (*);;PTH Files (*.pth)", options=options)
+		self.checkpoints_dir_dtxt.setText(name)
+
+	def openDirectory(self):
+		path = QFileDialog.getExistingDirectory(self, 'Select directory', '/home/cz/cs/PG19/res')
+		self.output_path_dtxt.setText(path)
 
 	def showMessage(self):
 		QMessageBox.about(self, 'Warning', 'Opts cannot be empty!')
 
 	def getAllOpts(self):
 		params = []
-		dataroot = self.dataroot_dtxt.text()
 		checkpoints_dir = self.checkpoints_dir_dtxt.text()
 		output_path = self.output_path_dtxt.text()
 
-		dataset_mode = self.dataset_mode_dtxt.text()
 		name = self.name_dtxt.text()
 		model = self.model_dtxt.text()
 		sigma = self.sigma_dtxt.text()
@@ -811,10 +597,7 @@ class RTNWindow(QWidget):
 		hidden_dim = self.hidden_dim_dtxt.text()
 		init_type = self.init_type_dtxt.text()
 		init_gain = self.init_gain_dtxt.text()
-		batch_size = self.batch_size_dtxt.text()
 
-		params.append(dataroot)
-		params.append(dataset_mode)
 		params.append(name)
 		params.append(model)
 		params.append(checkpoints_dir)
@@ -825,10 +608,9 @@ class RTNWindow(QWidget):
 		params.append(hidden_dim)
 		params.append(init_type)
 		params.append(init_gain)
-		params.append(batch_size)
 		params.append(output_path)
 
-		if len(dataroot) == 0 or len(checkpoints_dir) == 0 or len(output_path) == 0:
+		if len(checkpoints_dir) == 0 or len(output_path) == 0:
 			self.showMessage()
 		else:
 			self.procDone.emit(params)
@@ -932,9 +714,76 @@ class scriptWrapper():
 	def __init__(self):
 		self.fvae = fVAE()
 		self.rtn = RTN()
+		self.opt = TestOptions().parse()
 
-	def run_fvae(self):
-		return
+	def run_fvae(self, past, target):
+		"""Run fVAE
+		Parameters:
+			past: ndarray of past frames
+			target: target frame
+		"""
+		self.gather_fvae_opts()
+		past = self.toHeatmap(past, self.opt.dim_heatmap, self.opt.sigma)
+		target = self.toHeatmap(target, self.opt.dim_heatmap, self.opt.sigma)
+		past = past[np.newaxis, :]
+		target = target[np.newaxis, :]
+		pastLatentItems = run_gui(self.opt, torch.tensor(past))
+		targetLatentItems = run_gui(self.opt, torch.tensor(target))
+
+		return pastLatentItems, targetLatentItems
+
+	def run_rtn(self, past, target):
+		"""Run RTN
+		Parameters:
+			past: ndarray of past frames
+			target: target frame
+		"""
+		self.gather_rtn_opts()
+		run_gui(self.opt, past, target)
+
+	def toHeatmap(self, data, dim_heatmap, sigma):
+		heatmaps = []
+		for d in data:
+			heatmaps.append(calculate_3Dheatmap(d, dim_heatmap, sigma))
+		heatmaps = np.asarray(heatmaps)
+		return heatmaps
+
+	def gather_fvae_opts(self):
+		self.opt.name = self.fvae.name
+		self.opt.model = self.fvae.model
+		# extract checkpoints_dir and epoch from original checkpoints_dir
+		checkpoints_dir = Path(self.fvae.checkpoints_dir)
+		epoch = checkpoints_dir.parts[-1]
+		self.opt.checkpoints_dir = str(checkpoints_dir.parent.parent)
+		self.opt.epoch = int(epoch[:epoch.find('_')])
+		self.opt.sigma = float(self.fvae.sigma)
+		self.opt.dim_heatmap = int(self.fvae.dim_heatmap)
+		self.opt.num_joints = int(self.fvae.num_joints)
+		self.opt.z_dim = int(self.fvae.z_dim)
+		self.opt.u_dim = int(self.fvae.u_dim)
+		self.opt.hidden_dim = int(self.fvae.hidden_dim)
+		self.opt.noise_dim = int(self.fvae.noise_dim)
+		self.opt.transform_dim = int(self.fvae.transform_dim)
+		self.opt.init_type = self.fvae.init_type
+		self.opt.init_gain = float(self.fvae.init_gain)
+		self.opt.output_path = self.fvae.output_path
+
+	def gather_rtn_opts(self):
+		self.opt.name = self.rtn.name
+		self.opt.model = self.rtn.model
+		# extract checkpoints_dir and epoch from original checkpoints_dir
+		checkpoints_dir = Path(self.rtn.checkpoints_dir)
+		epoch = checkpoints_dir.parts[-1]
+		self.opt.checkpoints_dir = str(checkpoints_dir.parent.parent)
+		self.opt.epoch = int(epoch[:epoch.find('_')])
+		self.opt.sigma = float(self.rtn.sigma)
+		self.opt.num_joints = int(self.rtn.num_joints)
+		self.opt.x_dim = int(self.rtn.x_dim)
+		self.opt.z_dim = int(self.rtn.z_dim)
+		self.opt.hidden_dim = int(self.rtn.hidden_dim)
+		self.opt.init_type = self.rtn.init_type
+		self.opt.init_gain = float(self.rtn.init_gain)
+		self.opt.output_path = self.rtn.output_path
 
 
 class Viewer(QMainWindow):
@@ -1062,63 +911,58 @@ class Viewer(QMainWindow):
 		self.selectWindow.procDone.connect(self.getItems)
 
 	def getfVAEOpts(self, opts):
-		self.sw.fvae.dataroot = opts[0]
-		self.sw.fvae.dataset_mode = opts[1]
-		self.sw.fvae.name = opts[2]
-		self.sw.fvae.model = opts[3]
-		self.sw.fvae.checkpoints_dir = opts[4]
-		self.sw.fvae.sigma = opts[5]
-		self.sw.fvae.dim_heatmap = opts[6]
-		self.sw.fvae.num_joints = opts[7]
-		self.sw.fvae.z_dim = opts[8]
-		self.sw.fvae.u_dim = opts[9]
-		self.sw.fvae.hidden_dim = opts[10]
-		self.sw.fvae.noise_dim = opts[11]
-		self.sw.fvae.transform_dim = opts[12]
-		self.sw.fvae.init_type = opts[13]
-		self.sw.fvae.init_gain = opts[14]
-		self.sw.fvae.batch_size = opts[15]
-		self.sw.fvae.lafan_mode = opts[16]
-		self.sw.fvae.lafan_window = opts[17]
-		self.sw.fvae.lafan_offset = opts[18]
-		self.sw.fvae.lafan_samplerate = opts[19]
-		self.sw.fvae.lafan_use_heatmap = opts[20]
-		self.sw.fvae.output_path = opts[21]
+		self.sw.fvae.name = opts[0]
+		self.sw.fvae.model = opts[1]
+		self.sw.fvae.checkpoints_dir = opts[2]
+		self.sw.fvae.sigma = opts[3]
+		self.sw.fvae.dim_heatmap = opts[4]
+		self.sw.fvae.num_joints = opts[5]
+		self.sw.fvae.z_dim = opts[6]
+		self.sw.fvae.u_dim = opts[7]
+		self.sw.fvae.hidden_dim = opts[8]
+		self.sw.fvae.noise_dim = opts[9]
+		self.sw.fvae.transform_dim = opts[10]
+		self.sw.fvae.init_type = opts[11]
+		self.sw.fvae.init_gain = opts[12]
+		self.sw.fvae.output_path = opts[13]
 
 	def getRTNOpts(self, opts):
-		self.sw.rtn.dataroot = opts[0]
-		self.sw.rtn.dataset_mode = opts[1]
-		self.sw.rtn.name = opts[2]
-		self.sw.rtn.model = opts[3]
-		self.sw.rtn.checkpoints_dir = opts[4]
-		self.sw.rtn.sigma = opts[5]
-		self.sw.rtn.num_joints = opts[6]
-		self.sw.rtn.x_dim = opts[7]
-		self.sw.rtn.z_dim = opts[8]
-		self.sw.rtn.hidden_dim = opts[9]
-		self.sw.rtn.init_type = opts[10]
-		self.sw.rtn.init_gain = opts[11]
-		self.sw.rtn.batch_size = opts[12]
-		self.sw.rtn.output_path = opts[13]
+		self.sw.rtn.name = opts[0]
+		self.sw.rtn.model = opts[1]
+		self.sw.rtn.checkpoints_dir = opts[2]
+		self.sw.rtn.sigma = opts[3]
+		self.sw.rtn.num_joints = opts[4]
+		self.sw.rtn.x_dim = opts[5]
+		self.sw.rtn.z_dim = opts[6]
+		self.sw.rtn.hidden_dim = opts[7]
+		self.sw.rtn.init_type = opts[8]
+		self.sw.rtn.init_gain = opts[9]
+		self.sw.rtn.output_path = opts[10]
 
 	def getItems(self, pitems, titems):
 		self.pastItems = []
 		self.targetItems = []
+		self.pastOriginalItems = []
+		self.targetOriginalItems = []
 		for i in pitems:
 			with open(i, 'rb') as f:
 				data = pickle.load(f, encoding='latin1')
+			self.pastOriginalItems.append(data)
 			root = np.zeros((1, 3))
 			data = np.concatenate((root, data), axis=0)
 			self.pastItems.append(data)
 		for i in titems:
 			with open(i, 'rb') as f:
 				data = pickle.load(f, encoding='latin1')
+			self.targetOriginalItems.append(data)
 			root = np.zeros((1, 3))
 			data = np.concatenate((root, data), axis=0)
 			self.targetItems.append(data)
 
 		self.pastItems = np.asarray(self.pastItems)
 		self.targetItems = np.asarray(self.targetItems)
+		self.pastOriginalItems = np.asarray(self.pastOriginalItems)
+		self.targetOriginalItems = np.asarray(self.targetOriginalItems)
 		self.drawLeftItem()
 		self.drawRightItem()
 
@@ -1326,8 +1170,8 @@ class Viewer(QMainWindow):
 		self.middleGLViewer.addItem(self.points)
 
 	def generate(self):
-		self.sw.run_fvae()
-		self.sw.run_rtn()
+		self.pastLatentItems, self.targetLatentItems = self.sw.run_fvae(self.pastOriginalItems, self.targetOriginalItems)
+		self.transitions = self.sw.run_rtn(self.pastLatentItems, self.targetLatentItems)
 
 
 def main():

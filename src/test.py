@@ -2,18 +2,53 @@ import os
 from options.test_options import TestOptions
 from data import create_dataset
 from models import create_model
+from utils.calculate_3Dheatmap import calculate_3Dheatmap
+from utils.utils import slerp
+from utils.utils import blend
+
 import scipy.io
 from glob import glob
 import tqdm
 from shutil import rmtree
 import torch
 import numpy as np
-from utils.utils import slerp
-from utils.utils import blend
 import time
 import pickle
 
 eps = 2e-1
+
+def load_fvae(opt, file_names):
+	"""Load data for fvae module
+	Parameters:
+		opt: options
+		file_names: ndarray of input file names
+	Return:
+		data: tensor of fvae input data
+	"""
+	fvae_data = []
+	for f_name in file_names:
+		with open(f_name, 'rb') as f:
+			data = pickle.load(f, encoding='latin1')
+		data = calculate_3Dheatmap(data, opt.dim_heatmap, opt.sigma)
+		fvae_data.append(data)
+	fvae_data = np.asarray(fvae_data)
+	return torch.from_numpy(fvae_data)
+
+def load_rtn(file_names):
+	"""Load data for rtn module
+	Parameters:
+		opt: options
+		file_names: ndarray of input data
+	Return:
+		data: tensor of rtn input data
+	"""
+	rtn_data = []
+	for f_name in file_names:
+		with open(f_name, 'rb') as f:
+			data = pickle.load(f, encoding='latin1')
+		rtn_data.append(data)
+	rtn_data = np.asarray(rtn_data)
+	return torch.from_numpy(rtn_data)
 
 def postprocess(output, gt, opt):
 	"""postprocess
@@ -27,7 +62,7 @@ def postprocess(output, gt, opt):
 		output = output.reshape(output.shape[0], -1, 3)
 
 		return output
-	elif opt.model == 'rtn':
+	elif opt.model == 'rtn2':
 		transition  = blend(output, gt[-1])
 		return transition
 	elif opt.model == 'vae2':
@@ -46,14 +81,14 @@ def postprocess(output, gt, opt):
 		return output
 	elif opt.model == 'vaedmp':
 		return output
-	elif opt.model == 'rln':
+	elif opt.model == 'rtn':
 		return output
 
 
-if __name__ =='__main__':
+def run(opt):
 	start_time = time.time()
 	# options
-	opt = TestOptions().parse()
+	#opt = TestOptions().parse()
 	# opt.num_threads = 1    # test code only support num_threads = 1
 	# opt.batch_size = 1     # test code only support batch_size = 1
 	# opt.serial_batches = True  # no shuffle
@@ -149,3 +184,29 @@ if __name__ =='__main__':
 	end_time = time.time()
 	print('Time:', end_time - start_time)
 	print('Done!')
+
+
+def run_gui(opt, data):
+	# create model
+	model = create_model(opt)
+	model.setup(opt)
+	model.eval()
+	print('Loading model %s' % opt.model)
+
+	output_path = opt.output_path
+
+
+	if os.path.exists(output_path):
+		rmtree(output_path)
+	os.makedirs(output_path)
+	print("Evaluating...")
+
+	model.set_input_gui(data)
+	output, _, _ = model.inference()
+	output = output.data.cpu().numpy()
+
+	return output
+
+if __name__ == '__main__':
+	opt = TestOptions().parse()
+	run(opt)

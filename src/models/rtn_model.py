@@ -24,6 +24,9 @@ class RTNModel(BaseModel):
 		BaseModel.__init__(self, opt)
 		self.loss_names = ['RTNRec', 'RTNMono']
 		self.model_names = ['RTN']
+
+		self.file_name = None
+
 		self.n_joints = opt.num_joints
 		self.x_dim = opt.x_dim
 		self.hidden_dim = opt.hidden_dim
@@ -52,7 +55,6 @@ class RTNModel(BaseModel):
 
 	def set_input(self, input):
 		""" Unpack input data from the dataloader and perform necessary pre-processing steps.
-
 		Parameters:
 			input (dict): include the data itself and its metadata information.
 		"""
@@ -63,9 +65,15 @@ class RTNModel(BaseModel):
 
 		self.file_name = input['info']
 
+	def set_input_gui(self, input):
+		""" Unpack input data from the dataloader and perform necessary pre-processing steps.
+		Parameters:
+			input : tensor of input data.
+		"""
+		self.input = input
+
 	def get_model(self):
 		return self.netRTN
-
 
 	def forward(self):
 		""" Run forward pass, called by both functions <optimize_parameters> and <test>

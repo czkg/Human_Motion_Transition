@@ -2,7 +2,7 @@ set -ex
 GPU_ID=0
 # command
 CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
-	--dataroot ../dataset/lafan/train_set \
+	--dataroot ../dataset/lafan/train_set_new \
 	--dataset_mode lafan \
 	--name vaedmp \
 	--model vaedmp \
@@ -24,7 +24,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--batch_size 16 \
 	--lafan_mode seq \
 	--lafan_window 30 \
-	--lafan_offset 5 \
-	--lafan_samplerate 5 \
+	--lafan_offset 6 \
+	--lafan_samplerate 2 \
 	--lafan_use_heatmap \
 	--no_html
