@@ -123,7 +123,7 @@ class Viewer(QMainWindow):
 		self.name_txt.clear()
 		options = QFileDialog.Options()
 		options |= QFileDialog.DontUseNativeDialog
-		self.file, _ = QFileDialog.getOpenFileName(self,"Select Sequence", "/home/cz/cs/PG19/dataset/lafan/train_set","All Files (*);;PKL Files (*.pkl)", options=options)
+		self.file, _ = QFileDialog.getOpenFileName(self,"Select Sequence", "/home/cz/cs/PG19/dataset/lafan/test_set","All Files (*);;PKL Files (*.pkl)", options=options)
 		self.name_txt.setText(self.file)
 		self.getItems(self.file)
 
@@ -188,7 +188,7 @@ class Viewer(QMainWindow):
 			'rv': self.rv
 		}
 
-		output_path = '/home/cz/cs/PG19/dataset/lafan/train_set_new'
+		output_path = '/home/cz/cs/PG19/dataset/lafan/test_set_new'
 		if not os.path.exists(output_path):
 			os.makedirs(output_path)
 

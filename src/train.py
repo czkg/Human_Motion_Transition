@@ -38,7 +38,7 @@ if __name__ == '__main__':
 				continue
 			model.optimize_parameters()      # calculate loss function, get gradients, update network weights
 
-			if total_iters % opt.plot_freq == 0 and opt.name == 'vaedmp':
+			if total_iters % opt.plot_freq == 0 and opt.lafan_use_heatmap is True:
 				o, i = model.get_current_out_in()
 				visualizer.plot_heatmap_xy(o, i)
 

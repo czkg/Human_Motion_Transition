@@ -19,4 +19,6 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--init_type xavier \
 	--init_gain 0.8 \
 	--batch_size 16 \
+	--plot_freq 100 \
+	--lafan_use_heatmap \
 	--no_html

@@ -46,9 +46,10 @@ class PathDataset(BaseDataset):
 		file = self.paths[index]
 		file_name = self.names[index]
 		with open(file, 'rb') as f:
-			data = pickle.load(f, encoding='latin1')
-		data = data['data']
-		A = {'data': torch.tensor(data), 'info': file_name}
+			raw_data = pickle.load(f, encoding='latin1')
+		data = raw_data['data']
+		gt = raw_data['gt']
+		A = {'data': torch.tensor(data), 'gt': torch.tensor(gt), 'info': file_name}
 
 		return A
 

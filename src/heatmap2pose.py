@@ -12,7 +12,7 @@ if __name__ == '__main__':
 	parser.add_argument('--input_path', type=str, help='the input path')
 	parser.add_argument('--output_path', type=str, help='the output path')
 	parser.add_argument('--dim_heatmap', type=int, default=64, help='the dimension of the heatmap')
-	parser.add_argument('--n_joints', type=int, default=17, help='the number of joints')
+	parser.add_argument('--n_joints', type=int, default=21, help='the number of joints')
 	args = vars(parser.parse_args())
 
 	input_path = args['input_path']

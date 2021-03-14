@@ -32,6 +32,7 @@ class VAEDMPModel(BaseModel):
 		self.n_joints = opt.num_joints
 		self.dim_heatmap = opt.dim_heatmap
 		self.x_dim = self.dim_heatmap ** 2 * self.n_joints + self.dim_heatmap * self.n_joints
+		#self.x_dim = (self.n_joints + 1) * 4
 		self.hidden_dim = opt.hidden_dim
 		self.noise_dim = opt.noise_dim
 		self.transform_dim = opt.transform_dim
@@ -86,16 +87,16 @@ class VAEDMPModel(BaseModel):
 
 	def inference(self):
 		with torch.no_grad():
-			xs,zs,_,_,_,_ = self.netVAEDMP(self.input)
+			xs,zs,sxs,szs,_,_ = self.netVAEDMP(self.input)
 
-		return zs, xs, self.file_name
+		return zs, xs, sxs, szs, self.file_name
 
 	def decoder(self, z):
 		z = z.to(self.device)
 		if not self.is_decoder:
 			assert('should be in decoder mode')
 		with torch.no_grad():
-			out = self.netVAEDMP(z)
+			out,_,_,_,_,_ = self.netVAEDMP(z)
 			return out
 
 

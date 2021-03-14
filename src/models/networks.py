@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
+import os
 
 ###############################################################################
 # Helper functions
@@ -61,6 +62,29 @@ def init_net(net, init_type='normal', init_gain=1., gpu_ids=[]):
         net = torch.nn.DataParallel(net, gpu_ids)  # multi-GPUs
     init_weights(net, init_type, init_gain=init_gain)
     return net
+
+
+def load_net(net, checkpoint, name, epoch, gpu_ids=[]):
+    if len(gpu_ids) > 0:
+        assert(torch.cuda.is_available())
+        net.to(gpu_ids[0])
+        net = torch.nn.DataParallel(net, gpu_ids)  # multi-GPUs
+    load_weights(net, checkpoint, name, epoch, gpu_ids)
+    return net
+
+
+def load_weights(net, checkpoint, name, epoch, gpu_ids):
+    net = net.module
+    save_dir = os.path.join(checkpoint, name)
+    load_filename = '%s_net_%s.pth' % (epoch, name.upper())
+    load_path = os.path.join(save_dir, load_filename)
+    print('loading the model from %s' % load_path)
+    device = torch.device('cuda:{}'.format(gpu_ids[0])) if gpu_ids else torch.device('cpu')
+    state_dict = torch.load(load_path, map_location=str(device))
+    if hasattr(state_dict, '_metadata'):
+        del state_dict._metadata
+
+    net.load_state_dict(state_dict)
 
 
 def get_scheduler(optimizer, opt):
@@ -1164,6 +1188,7 @@ class VAEDMP(nn.Module):
         self.transform_dim = transform_dim
 
         self.device = device
+        self.is_decoder = is_decoder
 
         self.alpha = alpha
         self.beta = beta
@@ -1263,6 +1288,7 @@ class VAEDMP(nn.Module):
         h1 = F.leaky_relu(self.fc_de1(z))
         h2 = F.leaky_relu(self.fc_de2(h1))
         return torch.sigmoid(self.fc_de3(h2))
+        #return torch.tanh(self.fc_de3(h2))
 
     def noise_net(self, feature, z, f):
         """Network to generate wi (noise) from xi and z(i-1)
@@ -1320,69 +1346,76 @@ class VAEDMP(nn.Module):
         Returns:
             Latent codes zs and reconstructed xs.
         """
-        # first, reshape x from [batch, len_sequence, x_dim] to [len_sequence, batch, x_dim]
-        x = torch.transpose(x, 0, 1)
-        # z1
-        feature1 = self.encoder(x[0])
-        # z1 = self.sample_z(feature1)
-        # x1 = self.decoder(z1)
-        # sx1 = x1.clone()
-        wd1, w1, z1 = self.init_enc(feature1)
-        x1 = self.decoder(z1)
-        sx1 = x1.clone()
+        if not self.is_decoder:        
+            # first, reshape x from [batch, len_sequence, x_dim] to [len_sequence, batch, x_dim]
+            x = torch.transpose(x, 0, 1)
+            # z1
+            feature1 = self.encoder(x[0])
+            wd1, w1, z1 = self.init_enc(feature1)
+            x1 = self.decoder(z1)
+            sx1 = x1.clone()
 
-        if x.shape[0] == 1:
-            sx1 = sx1.unsqueeze(0)
-            z1 = z1.unsqueeze(0)
-            return sx1, z1, sx1, None, None
-        # z2
-        # _, _, z2 = self.init_enc(features[1])
-        feature2 = self.encoder(x[1])
-        #z2 = self.sample_z(feature2)
-        _,_,z2 = self.init_enc(feature2)
-        # z_goal
-        # _, _, zn = self.init_enc(features[-1])
-        featuren = self.encoder(x[-1])
-        #zn = self.sample_z(featuren)
-        _,_,zn = self.init_enc(featuren)
+            if x.shape[0] == 1:
+                sx1 = sx1.unsqueeze(0)
+                z1 = z1.unsqueeze(0)
+                return sx1, z1, sx1, None, None
 
-        dz1 = (z2 - z1) / self.dt
-        zt = z1.clone()
-        dzt = dz1.clone()
+            # z2
+            feature2 = self.encoder(x[1])
+            _,_,z2 = self.init_enc(feature2)
 
-        xs = x1.unsqueeze(0)
-        zs = z1.unsqueeze(0)
-        wds = wd1.unsqueeze(0)
-        sxs = sx1.unsqueeze(0)
-        szs = z1.unsqueeze(0)
-        for t, xt in enumerate(x[1:]):
-            # calculate f
-            fs = self.force(zs, zn)
-            ft = fs[-1]
-            featuret = self.encoder(xt)
-            #szt = self.sample_z(featuret)
-            _,_,szt = self.init_enc(featuret)
-            szs = torch.cat((szs, szt.unsqueeze(0)), 0)
-            sxt = self.decoder(szt)
-            sxs = torch.cat((sxs, sxt.unsqueeze(0)), 0)
-            wdt, wt = self.noise_net(featuret, zt, ft)
-            wds = torch.cat((wds, wdt.unsqueeze(0)), 0)
-            # calculate z[t+1]
-            nex = self.A(zt, dzt) + self.b(zn, ft, wt)
-            zt = nex[0]
-            dzt = nex[1]
-            zs = torch.cat((zs, zt.unsqueeze(0)), 0)
-            # calculate reconstructed x
-            xt = self.decoder(zt)
-            xs = torch.cat((xs, xt.unsqueeze(0)), 0)
+            # z_goal
+            featuren = self.encoder(x[-1])
+            _,_,zn = self.init_enc(featuren)
 
-        xs = torch.transpose(xs, 0, 1)
-        zs = torch.transpose(zs, 0, 1)
-        wds = torch.transpose(wds, 0, 1)
-        sxs = torch.transpose(sxs, 0, 1)
-        szs = torch.transpose(szs, 0, 1)
-        fs = torch.transpose(fs, 0, 1)
-        return xs, zs, sxs, szs, wds, fs
+            dz1 = (z2 - z1) / self.dt
+            zt = z1.clone()
+            dzt = dz1.clone()
+
+            xs = x1.unsqueeze(0)
+            zs = z1.unsqueeze(0)
+            wds = wd1.unsqueeze(0)
+            sxs = sx1.unsqueeze(0)
+            szs = z1.unsqueeze(0)
+            for t, xt in enumerate(x[1:]):
+                # calculate f
+                fs = self.force(zs, zn)
+                ft = fs[-1]
+                featuret = self.encoder(xt)
+                #szt = self.sample_z(featuret)
+                _,_,szt = self.init_enc(featuret)
+                szs = torch.cat((szs, szt.unsqueeze(0)), 0)
+                sxt = self.decoder(szt)
+                sxs = torch.cat((sxs, sxt.unsqueeze(0)), 0)
+                wdt, wt = self.noise_net(featuret, zt, ft)
+                wds = torch.cat((wds, wdt.unsqueeze(0)), 0)
+                # calculate z[t+1]
+                nex = self.A(zt, dzt) + self.b(zn, ft, wt)
+                zt = nex[0]
+                dzt = nex[1]
+                zs = torch.cat((zs, zt.unsqueeze(0)), 0)
+                # calculate reconstructed x
+                xt = self.decoder(zt)
+                xs = torch.cat((xs, xt.unsqueeze(0)), 0)
+
+            xs = torch.transpose(xs, 0, 1)
+            zs = torch.transpose(zs, 0, 1)
+            wds = torch.transpose(wds, 0, 1)
+            sxs = torch.transpose(sxs, 0, 1)
+            szs = torch.transpose(szs, 0, 1)
+            fs = torch.transpose(fs, 0, 1)
+            return xs, zs, sxs, szs, wds, fs
+
+        else:
+            # first, reshape x from [batch, len_sequence, x_dim] to [len_sequence, batch, x_dim]
+            z = torch.transpose(x, 0, 1)
+            x1 = self.decoder(z[0])
+            xs = x1.unsqueeze(0)
+            for zt in z[1:]:
+                xt = self.decoder(zt)
+                xs = torch.cat((xs, xt.unsqueeze(0)), 0)
+            xs = torch.transpose(xs, 0, 1)
+            return xs
 
 
 class VAEDMPLoss(nn.Module):
@@ -1726,7 +1759,8 @@ class RTN(nn.Module):
         h1 = F.leaky_relu(self.fc_de1(h))
         h2 = F.leaky_relu(self.fc_de2(h1))
         h3 = F.leaky_relu(self.fc_de3(h2))
-        return torch.sigmoid(h3)
+        #return torch.tanh(h3)
+        return h3
 
 
     def h_init_net(self, x):
@@ -1826,22 +1860,27 @@ class RTN(nn.Module):
         ct = torch.unsqueeze(ct, 0)
         last_x = xs[0:self.past_len]
         for t in range(self.transition_len):
-            if isTrain:
-                x = xs[t:t+self.past_len]
+            # if isTrain:
+            #     x = xs[t:t+self.past_len]
+            # else:
+            #     if t == 0:
+            #         x = last_x
+            #     else:
+            #         x = last_x[1:]
+            #         x = torch.cat((x,torch.unsqueeze(x_next, 0)),0)
+            if t == 0:
+                x = last_x
             else:
-                if t == 0:
-                    x = last_x
-                else:
-                    x = last_x[1:]
-                    x = torch.cat((x,torch.unsqueeze(x_next, 0)),0)
+                x = last_x[1:]
+                x = torch.cat((x,torch.unsqueeze(x_next, 0)),0)
 
 
             out, (ht, ct) = self.lstm(x, (ht, ct))
             out = out[-1]
             h = self.decoder(out)
             hs.append(h)
-            #x_next = x[-1] + h
-            x_next = h
+            x_next = torch.tanh(x[-1] + h)
+            #x_next = h
             xs_next.append(x_next)
 
             last_x = x
@@ -1864,6 +1903,14 @@ class RTNRecLoss(nn.Module):
 
     def __call__(self, outputs, targets):
         loss = 100*F.mse_loss(outputs, targets, reduction = 'sum')
+        return loss
+
+class RTNHeatmapLoss(nn.Module):
+    def __init__(self):
+        super(RTNHeatmapLoss, self).__init__()
+
+    def __call__(self, outputs, targets):
+        loss = F.mse_loss(outputs, targets, reduction = 'sum')
         return loss
 
 class RTNMonoLoss(nn.Module):

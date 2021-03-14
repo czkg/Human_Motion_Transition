@@ -119,7 +119,7 @@ def run(opt):
 
 	for i, data in enumerate(dataset):   # inner loop within one epoch
 		model.set_input(data)
-		out, _, file_name = model.inference()
+		out, _, _, _, file_name = model.inference()
 		out = out[0].data.cpu().numpy()
 		gt = data['data'][0].data.cpu().numpy()
 		file_name = file_name[0]
@@ -128,7 +128,7 @@ def run(opt):
 		
 		out_path = os.path.join(output_path, file_name)
 
-		out_data = {'data': out}
+		out_data = {'data': out, 'gt': gt}
 		with open(out_path, 'wb') as f:
 			pickle.dump(out_data, f, protocol=pickle.HIGHEST_PROTOCOL)
 
