@@ -1905,9 +1905,9 @@ class RTNRecLoss(nn.Module):
         loss = 100*F.mse_loss(outputs, targets, reduction = 'sum')
         return loss
 
-class RTNHeatmapLoss(nn.Module):
+class RTNXRecLoss(nn.Module):
     def __init__(self):
-        super(RTNHeatmapLoss, self).__init__()
+        super(RTNXRecLoss, self).__init__()
 
     def __call__(self, outputs, targets):
         loss = F.mse_loss(outputs, targets, reduction = 'sum')

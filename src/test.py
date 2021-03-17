@@ -119,7 +119,7 @@ def run(opt):
 
 	for i, data in enumerate(dataset):   # inner loop within one epoch
 		model.set_input(data)
-		out, _, _, _, file_name = model.inference()
+		_, out, _, _, file_name = model.inference()
 		out = out[0].data.cpu().numpy()
 		gt = data['data'][0].data.cpu().numpy()
 		file_name = file_name[0]

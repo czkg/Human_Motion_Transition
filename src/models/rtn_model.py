@@ -22,7 +22,7 @@ class RTNModel(BaseModel):
 			opt (Option class)-- stores all the experiment flags, needs to be a subclass of BaseOptions
 		"""
 		BaseModel.__init__(self, opt)
-		self.loss_names = ['RTNRec', 'RTNMono', 'RTNHeatmap']
+		self.loss_names = ['RTNRec', 'RTNMono', 'RTNXRec']
 		self.model_names = ['RTN']
 
 		self.file_name = None
@@ -44,7 +44,8 @@ class RTNModel(BaseModel):
 
 		# VAEDMP
 		dim_heatmap = 64
-		vaedmp_x_dim = dim_heatmap ** 2 * self.n_joints + dim_heatmap * self.n_joints
+		#vaedmp_x_dim = dim_heatmap ** 2 * self.n_joints + dim_heatmap * self.n_joints
+		vaedmp_x_dim = (self.n_joints + 1) * 4
 		vaedmp_z_dim = 32
 		vaedmp_u_dim = 32
 		vaedmp_hidden_dim = 128
@@ -59,7 +60,7 @@ class RTNModel(BaseModel):
 			#define loss functions
 			self.criterionRTNRec = networks.RTNRecLoss().to(self.device)
 			self.criterionRTNMono = networks.RTNMonoLoss().to(self.device)
-			self.criterionRTNHeatmap = networks.RTNHeatmapLoss().to(self.device)
+			self.criterionRTNXRec = networks.RTNXRecLoss().to(self.device)
 			#initialize optimizers
 			#self.optimizerVAE2 = torch.optim.SGD(self.netVAE2.parameters(), lr = opt.lr)
 			self.optimizerRTN = torch.optim.Adam(self.netRTN.parameters(), lr = opt.lr, betas = (opt.beta1, 0.999), eps = 1e-6)
@@ -75,10 +76,10 @@ class RTNModel(BaseModel):
 		"""
 		self.input = input['data'].to(self.device).float()
 		self.gt = input['data'].to(self.device).float()
-		self.hm_gt = input['gt'].to(self.device).float()
+		self.x_gt = input['gt'].to(self.device).float()
 
 		self.gt = self.gt[:, -self.transition_len:, ...]
-		self.hm_gt = self.hm_gt[:, -self.transition_len:, ...]
+		self.x_gt = self.x_gt[:, -self.transition_len:, ...]
 
 		self.file_name = input['info']
 
@@ -97,7 +98,7 @@ class RTNModel(BaseModel):
 		"""
 		self.output, self.hs, self.f = self.netRTN(self.input, self.isTrain)
 		with torch.no_grad():
-			self.hm = self.netVAEDMP(self.output)
+			self.x = self.netVAEDMP(self.output)
 
 	def inference(self):
 		with torch.no_grad():
@@ -110,8 +111,8 @@ class RTNModel(BaseModel):
 
 		self.loss_RTNRec = self.criterionRTNRec(self.output, self.gt)
 		self.loss_RTNMono = self.criterionRTNMono(self.f)
-		self.loss_RTNHeatmap = self.criterionRTNHeatmap(self.hm, self.hm_gt)
-		self.loss = self.loss_RTNRec + self.loss_RTNMono + self.loss_RTNHeatmap
+		self.loss_RTNXRec = self.criterionRTNXRec(self.x, self.x_gt)
+		self.loss = self.loss_RTNRec + self.loss_RTNMono + self.loss_RTNXRec
 		self.loss.backward()
 
 		self.optimizerRTN.step()
@@ -120,7 +121,7 @@ class RTNModel(BaseModel):
 	# 	self.vis.plot_heatmap_xy(self.output[0], self.input[0])
 
 	def get_current_out_in(self):
-		return self.hm[0][10],self.hm_gt[0][10]
+		return self.x[0][10],self.x_gt[0][10]
 
 
 	def optimize_parameters(self):
