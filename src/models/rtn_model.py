@@ -30,7 +30,6 @@ class RTNModel(BaseModel):
 		self.n_joints = opt.num_joints
 		self.x_dim = opt.x_dim
 		self.hidden_dim = opt.hidden_dim
-		self.z_dim = opt.z_dim
 
 		self.transition_len = opt.transition_len
 		self.past_len = opt.past_len
@@ -39,13 +38,12 @@ class RTNModel(BaseModel):
 			self.is_decoder = True
 		else:
 			self.is_decoder = False
-		self.netRTN = networks.RTN(self.x_dim, self.z_dim, self.hidden_dim, self.is_decoder)
+		self.netRTN = networks.RTN(self.x_dim, self.hidden_dim, self.is_decoder)
 		self.netRTN = networks.init_net(self.netRTN, init_type = opt.init_type, init_gain = opt.init_gain, gpu_ids = opt.gpu_ids)
 
 		# VAEDMP
 		dim_heatmap = 64
-		#vaedmp_x_dim = dim_heatmap ** 2 * self.n_joints + dim_heatmap * self.n_joints
-		vaedmp_x_dim = (self.n_joints + 1) * 4
+		vaedmp_x_dim = dim_heatmap ** 2 * self.n_joints + dim_heatmap * self.n_joints
 		vaedmp_z_dim = 32
 		vaedmp_u_dim = 32
 		vaedmp_hidden_dim = 128
@@ -78,9 +76,6 @@ class RTNModel(BaseModel):
 		self.gt = input['data'].to(self.device).float()
 		self.x_gt = input['gt'].to(self.device).float()
 
-		self.gt = self.gt[:, -self.transition_len:, ...]
-		self.x_gt = self.x_gt[:, -self.transition_len:, ...]
-
 		self.file_name = input['info']
 
 	def set_input_gui(self, input):
@@ -96,22 +91,22 @@ class RTNModel(BaseModel):
 	def forward(self):
 		""" Run forward pass, called by both functions <optimize_parameters> and <test>
 		"""
-		self.output, self.hs, self.f = self.netRTN(self.input, self.isTrain)
+		self.output, self.f = self.netRTN(self.input)
 		with torch.no_grad():
 			self.x = self.netVAEDMP(self.output)
 
 	def inference(self):
 		with torch.no_grad():
-			xs, hs, _ = self.netRTN(self.input, self.isTrain)
-		return xs, hs, self.file_name
+			xs, _ = self.netRTN(self.input)
+		return xs, self.file_name
 
 	def update(self):
 		self.set_requires_grad(self.netRTN, True)  # enable backprop
 		self.optimizerRTN.zero_grad()              # set gradients to zero
 
-		self.loss_RTNRec = self.criterionRTNRec(self.output, self.gt)
+		self.loss_RTNRec = self.criterionRTNRec(self.output[:,self.past_len:,...], self.gt[:,self.past_len:,...])
 		self.loss_RTNMono = self.criterionRTNMono(self.f)
-		self.loss_RTNXRec = self.criterionRTNXRec(self.x, self.x_gt)
+		self.loss_RTNXRec = self.criterionRTNXRec(self.x[:,self.past_len:,...], self.x_gt[:,self.past_len:,...])
 		self.loss = self.loss_RTNRec + self.loss_RTNMono + self.loss_RTNXRec
 		self.loss.backward()
 

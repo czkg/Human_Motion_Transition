@@ -108,7 +108,7 @@ class LafanDataset(BaseDataset):
 				data = rawdata['X']
 			pose = data[in_idx]
 
-			if use_heatmap:
+			if self.use_heatmap:
 				pose = convert2heatmap(pose, self.heatmap_dim, self.sigma)
 			pose = pose.reshape(-1)
 

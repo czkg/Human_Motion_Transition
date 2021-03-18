@@ -1711,10 +1711,9 @@ class RTNCLLoss(nn.Module):
 
 
 class RTN(nn.Module):
-    def __init__(self, x_dim, z_dim, hidden_dim, is_decoder, transition_len=19, past_len=10, target_len=1):
+    def __init__(self, x_dim, hidden_dim, is_decoder, transition_len=19, past_len=10, target_len=1):
         super(RTN, self).__init__()
         self.x_dim = x_dim
-        self.z_dim = z_dim
         self.hidden_dim = hidden_dim
 
         self.past_len = past_len
@@ -1722,34 +1721,22 @@ class RTN(nn.Module):
         self.transition_len = transition_len
 
         self.is_decoder = is_decoder
-        # encoder
-        # self.fc_en1 = nn.Linear(self.x_dim, self.hidden_dim)
-        # self.fc_en2 = nn.Linear(self.hidden_dim, 4*self.z_dim)
-
 
         # initial network
-        self.fc_init_en1 = nn.Linear(self.x_dim, self.hidden_dim)
-        self.fc_init_en2 = nn.Linear(self.hidden_dim, 4*self.z_dim)
+        self.fc_init_h_en1 = nn.Linear(self.x_dim, self.hidden_dim//2)
+        self.fc_init_h_en2 = nn.Linear(self.hidden_dim//2, self.hidden_dim)
+
+        self.fc_init_c_en1 = nn.Linear(self.x_dim, self.hidden_dim//2)
+        self.fc_init_c_en2 = nn.Linear(self.hidden_dim//2, self.hidden_dim)
 
         # transition
-        self.lstm = nn.LSTM(self.x_dim, 4*self.z_dim)
-
+        self.lstmCell = nn.LSTMCell(self.x_dim, self.hidden_dim)
 
         # decoder
-        self.fc_de1 = nn.Linear(4*self.z_dim, self.hidden_dim//2)
+        self.fc_de1 = nn.Linear(self.hidden_dim, self.hidden_dim//2)
         self.fc_de2 = nn.Linear(self.hidden_dim//2, self.hidden_dim//4)
         self.fc_de3 = nn.Linear(self.hidden_dim//4, self.x_dim)
 
-
-    # def encoder(self, x):
-    #     """Encoder network to extract features from inputs X
-    #     Parameters:
-    #         x (tensor) -- inputs in observation space of shape [batch, len_sequence, x_dim]
-    #     """
-
-    #     h1 = F.leaky_relu(self.fc_en1(x))
-    #     h2 = F.leaky_relu(self.fc_en2(h1))
-    #     return h2
 
     def decoder(self, h):
         """Decoder network to recover x from h
@@ -1768,15 +1755,25 @@ class RTN(nn.Module):
         Parameters:
         x (tensor) -- The first frame from input sequence of shape [batch, x_dim]
         """
-        h1 = F.leaky_relu(self.fc_init_en1(x))
-        h2 = F.leaky_relu(self.fc_init_en2(h1))
-        return h2, h2
+        h1 = F.leaky_relu(self.fc_init_h_en1(x))
+        h2 = F.leaky_relu(self.fc_init_h_en2(h1))
+        return h2
+
+    def c_init_net(self, x):
+        """MLP to predict initial cell state c0
+        Parameters:
+        x (tensor) -- The first frame from input sequence of shape [batch, x_dim]
+        """
+        h1 = F.leaky_relu(self.fc_init_c_en1(x))
+        h2 = F.leaky_relu(self.fc_init_c_en2(h1))
+        return h2
 
 
     def force(self, z, g):
         """Network to generate force for each frame
         Parameters:
             z (tensor) -- list of latent codes [len_sequence, batch, z_dim]
+            g (tensor) -- goal
         Returns:
             f (tensor) -- force of current frame [len_sequence, batch, z_dim]
         """
@@ -1811,36 +1808,7 @@ class RTN(nn.Module):
         return self.d(self.d(x))
 
 
-    # def slerp(p0, p1, t):
-    #     """
-    #     Spherical linear interpolation
-    #     """
-    #     omega = torch.acos(torch.dot(torch.squeeze(p0/torch.linalg.norm(p0)),
-    #                              torch.squeeze(p1/torch.linalg.norm(p1))))
-    #     so = torch.sin(omega)
-    #     return torch.sin(1.0 - t) * omega / so * p0 + torch.sin(t * omega) / so * p1
-
-    # def blend(outputs, target):
-    #     """Calculate interpolation between choosen outputs and target
-    #     Parameters:
-    #         outputs (tensor) -- tensor of latent codes [len_sequence, batch, z_dim]
-    #         target (tensor) -- tensor of latent codes [len_sequence, batch, z_dim]
-    #     Returns:
-    #         res (tensor) -- transition frames [len_sequence, batch, z_dim]
-    #     """
-    #     # find output with least L2 distance to target
-    #     dists_o2t = outputs - target
-    #     dists_o2o = outputs[1:,...] - outputs[:-1,...]
-    #     dists_o2t = torch.linalg.norm(dists_o2t, dim=-1)
-    #     dists_o2o = torch.linalg.norm(dists_o2o, dim=-1)
-    #     dists_o2o_max, _ = torch.max(dists_o2o, dim=0)
-
-    #     dists_o2t_min, o2t_minidx = torch.min(dists_o2t, dim=0)
-
-    #     need_blend = dists_o2t_min > dists_o2o_max
-    #     n_steps = torch.ceil(dists_o2t_min / dists_o2o_max)
-
-    def forward(self, xs, isTrain):
+    def forward(self, xs):
         """Calculate RTN's output.
         Parameters:
             xs (tensor) -- observation inputs of shape [batch, len_sequence, x_dim]
@@ -1851,51 +1819,30 @@ class RTN(nn.Module):
 
         # conver to [len_sequence, batch, dim]
         xs = torch.transpose(xs, 0, 1)
+        xs_recon = []
 
-        hs = []
-        xs_next = []
-        fs = []
-        ht, ct = self.h_init_net(xs[0])
-        ht = torch.unsqueeze(ht, 0)
-        ct = torch.unsqueeze(ct, 0)
-        last_x = xs[0:self.past_len]
-        for t in range(self.transition_len):
-            # if isTrain:
-            #     x = xs[t:t+self.past_len]
-            # else:
-            #     if t == 0:
-            #         x = last_x
-            #     else:
-            #         x = last_x[1:]
-            #         x = torch.cat((x,torch.unsqueeze(x_next, 0)),0)
-            if t == 0:
-                x = last_x
+        ht = self.h_init_net(xs[0])
+        ct = self.c_init_net(xs[0])
+        xs_recon.append(xs[0])
+
+        for i, x in enumerate(xs):
+            if i < self.past_len:
+                xt = x
             else:
-                x = last_x[1:]
-                x = torch.cat((x,torch.unsqueeze(x_next, 0)),0)
-
-
-            out, (ht, ct) = self.lstm(x, (ht, ct))
-            out = out[-1]
-            h = self.decoder(out)
-            hs.append(h)
-            x_next = torch.tanh(x[-1] + h)
-            #x_next = h
-            xs_next.append(x_next)
-
-            last_x = x
+                xt = x_recon
+            ht, ct = self.lstmCell(xt, (ht, ct))
+            h = self.decoder(ht)
+            x_recon = torch.tanh(xt + h)
+            xs_recon.append(x_recon)
 
             #calculate f
-            f = self.force(torch.stack(xs_next), xs[-1])
+            f = self.force(torch.stack(xs_recon[:-1]), xs[-1])
 
-
-        hs = torch.stack(hs)
-        xs_next = torch.stack(xs_next)
-        hs = torch.transpose(hs, 0, 1)
-        xs_next = torch.transpose(xs_next, 0, 1)
+        xs_recon = torch.stack(xs_recon[:-1])
+        xs_recon = torch.transpose(xs_recon, 0, 1)
         f = torch.transpose(f, 0, 1)
 
-        return xs_next, hs, f
+        return xs_recon, f
 
 class RTNRecLoss(nn.Module):
     def __init__(self):

@@ -13,7 +13,6 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/train.py \
 	--num_joints 21 \
 	--x_dim 32 \
 	--hidden_dim 512 \
-	--z_dim 128 \
 	--lr 1e-4 \
 	--beta1 0.9 \
 	--init_type xavier \

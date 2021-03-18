@@ -2,7 +2,7 @@ set -ex
 GPU_ID=0
 # command
 CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/test.py \
-	--dataroot ../dataset/lafan/test_set_new \
+	--dataroot ../dataset/lafan/train_set_new \
 	--dataset_mode lafan \
 	--name vaedmp \
 	--model vaedmp \
