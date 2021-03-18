@@ -7,6 +7,26 @@ from shutil import rmtree
 import scipy.io
 import pickle
 
+def heatmap2pose(data, dim_heatmap, n_joints):
+	dim_xy = dim_heatmap ** 2
+	l = np.linspace(-1, 1, dim_heatmap)
+
+	data = np.split(data, n_joints)
+	data_xy = [d[:dim_xy] for d in data]
+	data_z = [d[dim_xy:] for d in data]
+
+	xy_max = [np.argmax(dxy) for dxy in data_xy]
+	x_max = [xym // dim_heatmap for xym in xy_max]
+	y_max = [xym % dim_heatmap for xym in xy_max]
+	z_max = [np.argmax(dz) for dz in data_z]
+	x = [l[xm] for xm in x_max]
+	y = [l[ym] for ym in y_max]
+	z = [l[zm] for zm in z_max]
+
+	pose = np.stack((x, y, z), axis = 0)
+	pose = pose.T
+
+	return pose
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
@@ -25,10 +45,6 @@ if __name__ == '__main__':
 		rmtree(output_path)
 	os.makedirs(output_path)
 
-	dim_xy = dim_heatmap ** 2
-	#dim = dim_xy + dim_heatmap
-
-	l = np.linspace(-1, 1, dim_heatmap)
 	file_list = glob(input_path + '/*.pkl')
 	num = len(file_list)
 	for i in tqdm.trange(num):
@@ -41,43 +57,13 @@ if __name__ == '__main__':
 
 		est_poses = []
 		for j in range(est.shape[0]):
-			data = est[j]
-			data = np.split(data, n_joints)
-			data_xy = [d[:dim_xy] for d in data]
-			data_z = [d[dim_xy:] for d in data]
-
-			xy_max = [np.argmax(dxy) for dxy in data_xy]
-			x_max = [xym // dim_heatmap for xym in xy_max]
-			y_max = [xym % dim_heatmap for xym in xy_max]
-			z_max = [np.argmax(dz) for dz in data_z]
-			x = [l[xm] for xm in x_max]
-			y = [l[ym] for ym in y_max]
-			z = [l[zm] for zm in z_max]
-
-			pose = np.stack((x, y, z), axis = 0)
-			pose = pose.T
-
+			pose = heatmap2pose(est[j], dim_heatmap, n_joints)
 			est_poses.append(pose)
 		est_poses = np.asarray(est_poses)
 
 		gt_poses = []
 		for j in range(gt.shape[0]):
-			data = gt[j]
-			data = np.split(data, n_joints)
-			data_xy = [d[:dim_xy] for d in data]
-			data_z = [d[dim_xy:] for d in data]
-
-			xy_max = [np.argmax(dxy) for dxy in data_xy]
-			x_max = [xym // dim_heatmap for xym in xy_max]
-			y_max = [xym % dim_heatmap for xym in xy_max]
-			z_max = [np.argmax(dz) for dz in data_z]
-			x = [l[xm] for xm in x_max]
-			y = [l[ym] for ym in y_max]
-			z = [l[zm] for zm in z_max]
-
-			pose = np.stack((x, y, z), axis = 0)
-			pose = pose.T
-
+			pose = heatmap2pose(gt[j], dim_heatmap, n_joints)
 			gt_poses.append(pose)
 		gt_poses = np.asarray(gt_poses)
 

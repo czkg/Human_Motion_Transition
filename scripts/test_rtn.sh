@@ -1,9 +1,9 @@
 set -ex
 GPU_ID=0
 # command
-CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/test.py \
-	--dataroot ../res/vaedmp \
-	--dataset_mode path \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/test_rtn.py \
+	--dataroot ../dataset/lafan/test_set_new \
+	--dataset_mode lafan \
 	--name rtn \
 	--model rtn \
 	--checkpoints_dir ../results \
@@ -16,4 +16,10 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/test.py \
 	--init_type xavier \
 	--init_gain 0.8 \
 	--batch_size 1 \
-	--output_path ../res/rln
+	--epoch 100 \
+	--lafan_mode seq \
+	--lafan_window 30 \
+	--lafan_offset 6 \
+	--lafan_samplerate 2 \
+	--lafan_use_heatmap \
+	--output_path ../res/rtn

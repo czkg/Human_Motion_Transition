@@ -34,11 +34,8 @@ class RTNModel(BaseModel):
 		self.transition_len = opt.transition_len
 		self.past_len = opt.past_len
 		self.target_len = opt.target_len
-		if opt.is_decoder:
-			self.is_decoder = True
-		else:
-			self.is_decoder = False
-		self.netRTN = networks.RTN(self.x_dim, self.hidden_dim, self.is_decoder)
+
+		self.netRTN = networks.RTN(self.x_dim, self.hidden_dim)
 		self.netRTN = networks.init_net(self.netRTN, init_type = opt.init_type, init_gain = opt.init_gain, gpu_ids = opt.gpu_ids)
 
 		# VAEDMP
@@ -52,8 +49,10 @@ class RTNModel(BaseModel):
 		vaedmp_init_type = 'kaiming'
 		vaedmp_init_gain = 0.8
 		vaedmp_epoch = 100
-		self.netVAEDMP = networks.VAEDMP(vaedmp_x_dim, vaedmp_u_dim, vaedmp_z_dim, vaedmp_hidden_dim, vaedmp_transform_dim, vaedmp_noise_dim, True, self.device)
-		self.netVAEDMP = networks.load_net(self.netVAEDMP, opt.checkpoints_dir, 'vaedmp', vaedmp_epoch, gpu_ids = opt.gpu_ids)
+		self.netVAEDMP_Enc = networks.VAEDMP(vaedmp_x_dim, vaedmp_u_dim, vaedmp_z_dim, vaedmp_hidden_dim, vaedmp_transform_dim, vaedmp_noise_dim, False, self.device)
+		self.netVAEDMP_Enc = networks.load_net(self.netVAEDMP_Enc, opt.checkpoints_dir, 'vaedmp', vaedmp_epoch, gpu_ids = opt.gpu_ids)
+		self.netVAEDMP_Dec = networks.VAEDMP(vaedmp_x_dim, vaedmp_u_dim, vaedmp_z_dim, vaedmp_hidden_dim, vaedmp_transform_dim, vaedmp_noise_dim, True, self.device)
+		self.netVAEDMP_Dec = networks.load_net(self.netVAEDMP_Dec, opt.checkpoints_dir, 'vaedmp', vaedmp_epoch, gpu_ids = opt.gpu_ids)
 		if self.isTrain:
 			#define loss functions
 			self.criterionRTNRec = networks.RTNRecLoss().to(self.device)
@@ -74,7 +73,8 @@ class RTNModel(BaseModel):
 		"""
 		self.input = input['data'].to(self.device).float()
 		self.gt = input['data'].to(self.device).float()
-		self.x_gt = input['gt'].to(self.device).float()
+		if self.isTrain:
+			self.x_gt = input['gt'].to(self.device).float()
 
 		self.file_name = input['info']
 
@@ -97,8 +97,10 @@ class RTNModel(BaseModel):
 
 	def inference(self):
 		with torch.no_grad():
-			xs, _ = self.netRTN(self.input)
-		return xs, self.file_name
+			_,zs,_,_,_,_ = self.netVAEDMP_Enc(self.input)
+			nzs, _ = self.netRTN(zs)
+			xs = self.netVAEDMP_Dec(nzs)
+		return xs, self.gt, self.file_name
 
 	def update(self):
 		self.set_requires_grad(self.netRTN, True)  # enable backprop

@@ -15,7 +15,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/test.py \
 	--hidden_dim 128 \
 	--noise_dim 32 \
 	--transform_dim 64 \
-	--init_type normal \
+	--init_type kaiming \
 	--init_gain 0.8 \
 	--batch_size 1 \
 	--epoch 100 \

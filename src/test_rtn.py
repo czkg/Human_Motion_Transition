@@ -50,39 +50,6 @@ def load_rtn(file_names):
 	rtn_data = np.asarray(rtn_data)
 	return torch.from_numpy(rtn_data)
 
-def postprocess(output, gt, opt):
-	"""postprocess
-	Parameters:
-		output (array): output array of shape [len_sequence, x_dim]
-		gt (array): ground truth array of shape [len_sequence, x_dim]
-	"""
-	if opt.model == 'rtncl':
-		root = np.zeros((output.shape[0], 3))
-		output = np.concatenate((root, output), axis=1)
-		output = output.reshape(output.shape[0], -1, 3)
-
-		return output
-	elif opt.model == 'rtn2':
-		transition  = blend(output, gt[-1])
-		return transition
-	elif opt.model == 'vae2':
-		# dataset = opt.dataset_mode
-		# minmax_path = getattr(opt, dataset + '_minmax_path')
-		# minmax = np.load(minmax_path)
-		# mmin = minmax[0]
-		# mmax = minmax[1]
-
-		# x = mmin + (mmax - mmin) * x
-		root = np.zeros(3)
-		output = np.concatenate((root, output), axis=0)
-		output = output.reshape(-1, 3)
-		output = output[np.newaxis, ...]
-
-		return output
-	elif opt.model == 'vaedmp':
-		return output
-	elif opt.model == 'rtn':
-		return output
 
 
 def run(opt):
@@ -106,12 +73,10 @@ def run(opt):
 
 	for i, data in enumerate(dataset):   # inner loop within one epoch
 		model.set_input(data)
-		out, _, _, _, file_name = model.inference()
+		out, gt, file_name = model.inference()
 		out = out[0].data.cpu().numpy()
-		gt = data['data'][0].data.cpu().numpy()
+		gt = gt[0].data.cpu().numpy()
 		file_name = file_name[0]
-
-		out = postprocess(out, gt, opt)
 		
 		out_path = os.path.join(output_path, file_name)
 

@@ -1711,7 +1711,7 @@ class RTNCLLoss(nn.Module):
 
 
 class RTN(nn.Module):
-    def __init__(self, x_dim, hidden_dim, is_decoder, transition_len=19, past_len=10, target_len=1):
+    def __init__(self, x_dim, hidden_dim, transition_len=19, past_len=10, target_len=1):
         super(RTN, self).__init__()
         self.x_dim = x_dim
         self.hidden_dim = hidden_dim
@@ -1719,8 +1719,6 @@ class RTN(nn.Module):
         self.past_len = past_len
         self.target_len = target_len
         self.transition_len = transition_len
-
-        self.is_decoder = is_decoder
 
         # initial network
         self.fc_init_h_en1 = nn.Linear(self.x_dim, self.hidden_dim//2)
