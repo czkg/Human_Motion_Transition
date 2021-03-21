@@ -206,16 +206,16 @@ def define_E(input_size, output_size, ndf, netE,
     return init_net(net, init_type, init_gain, gpu_ids)
 
 
-def heatmap2pose(heatmap):
+def heatmap2pose(heatmaps):
     dim_heatmap = 64
-    n_joints = 17
+    n_joints = 21
     dim_xy = dim_heatmap ** 2
     dim_z = dim_heatmap
     #dim = dim_xy + dim_heatmap
 
     l = torch.linspace(-1, 1, dim_heatmap)
-    data = heatmap.view(heatmap.shape[0], n_joints, -1)
-    data_xy, data_z = torch.split(data, [dim_xy, dim_z], dim=2)
+    data = torch.reshape(heatmaps, (heatmaps.shape[0]*heatmaps.shape[1], n_joints, -1))
+    data_xy, data_z = torch.split(data, [dim_xy, dim_z], dim=-1)
 
     xy_max = torch.argmax(data_xy, dim=-1)
     x_max = xy_max // dim_heatmap
@@ -1735,6 +1735,10 @@ class RTN(nn.Module):
         self.fc_de2 = nn.Linear(self.hidden_dim//2, self.hidden_dim//4)
         self.fc_de3 = nn.Linear(self.hidden_dim//4, self.x_dim)
 
+        # decoder for fVAE
+        self.fc_fvae_de1 = nn.Linear(32, 128)
+        self.fc_fvae_de2 = nn.Linear(128, 128)
+        self.fc_fvae_de3 = nn.Linear(128, 87360)
 
     def decoder(self, h):
         """Decoder network to recover x from h
@@ -1746,6 +1750,15 @@ class RTN(nn.Module):
         h3 = F.leaky_relu(self.fc_de3(h2))
         #return torch.tanh(h3)
         return h3
+
+    def fvae_decoder(self, z):
+        """Decoder network to recover x from z
+        Parameters:
+            z (tensor) -- latent states of shape [batch, len_sequence, z_dim]
+        """
+        h1 = F.leaky_relu(self.fc_fvae_de1(z))
+        h2 = F.leaky_relu(self.fc_fvae_de2(h1))
+        return torch.sigmoid(self.fc_fvae_de3(h2))
 
 
     def h_init_net(self, x):
@@ -1818,10 +1831,12 @@ class RTN(nn.Module):
         # conver to [len_sequence, batch, dim]
         xs = torch.transpose(xs, 0, 1)
         xs_recon = []
+        fvaes_recon = []
 
         ht = self.h_init_net(xs[0])
         ct = self.c_init_net(xs[0])
         xs_recon.append(xs[0])
+        fvaes_recon.append(self.fvae_decoder(xs[0]))
 
         for i, x in enumerate(xs):
             if i < self.past_len:
@@ -1830,24 +1845,29 @@ class RTN(nn.Module):
                 xt = x_recon
             ht, ct = self.lstmCell(xt, (ht, ct))
             h = self.decoder(ht)
-            x_recon = torch.tanh(xt + h)
+            #x_recon = torch.tanh(xt + h)
+            x_recon = xt + h
+            fvae_recon = self.fvae_decoder(x_recon)
             xs_recon.append(x_recon)
+            fvaes_recon.append(fvae_recon)
 
             #calculate f
             f = self.force(torch.stack(xs_recon[:-1]), xs[-1])
 
         xs_recon = torch.stack(xs_recon[:-1])
         xs_recon = torch.transpose(xs_recon, 0, 1)
+        fvaes_recon = torch.stack(fvaes_recon[:-1])
+        fvaes_recon = torch.transpose(fvaes_recon, 0, 1)
         f = torch.transpose(f, 0, 1)
 
-        return xs_recon, f
+        return xs_recon, fvaes_recon, f
 
 class RTNRecLoss(nn.Module):
     def __init__(self):
         super(RTNRecLoss, self).__init__()
 
     def __call__(self, outputs, targets):
-        loss = 100*F.mse_loss(outputs, targets, reduction = 'sum')
+        loss = 1000*F.mse_loss(outputs, targets, reduction = 'sum')
         return loss
 
 class RTNXRecLoss(nn.Module):

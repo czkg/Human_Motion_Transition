@@ -12,6 +12,7 @@ from scipy.spatial.transform import Rotation as R
 import pickle
 from pathlib import Path
 import os
+from PIL import Image
 
 import torch
 import torch.nn as nn
@@ -28,6 +29,8 @@ class Viewer(QMainWindow):
 		self.initUI()
 
 	def initUI(self):
+		pg.setConfigOption('background', 'w')
+		pg.setConfigOption('foreground', 'k')
 		exitAct = QAction(QIcon('exit.png'), '&Exit', self)
 		exitAct.setShortcut('Ctrl+Q')
 		exitAct.setStatusTip('Exit application')
@@ -43,7 +46,7 @@ class Viewer(QMainWindow):
 		fileMenu.addAction(exitAct)
 		fileMenu.addAction(selectAct)
 
-		self.resize(800, 600)
+		self.resize(600, 600)
 		self.center()
 		self.setWindowTitle('EditViewer')
 
@@ -72,7 +75,6 @@ class Viewer(QMainWindow):
 		middle_hbox = QHBoxLayout()
 		self.GLViewer = gl.GLViewWidget()
 		self.GLViewer.qglColor(QtCore.Qt.white)
-		self.GLViewer.renderText(0, 0, 0, 'This is a test')
 		middle_hbox.addWidget(self.GLViewer)
 
 		# Bottom HBox
@@ -136,6 +138,34 @@ class Viewer(QMainWindow):
 		self.X = np.asarray(self.X)
 		self.Q = np.asarray(self.Q)
 		self.rv = np.asarray(self.rv)
+		self.size = self.X.shape[0]
+		self.isDeleted = np.zeros(self.size, dtype=bool)
+		self.drawItem()
+
+	def getTransitionItems(self, file):
+		with open(file, 'rb') as f:
+			data = pickle.load(f, encoding='latin1')
+		self.past = data['past']
+		self.transition = data['transition']
+		self.past = np.asarray(self.past)
+		self.transition = np.asarray(self.transition)
+		self.X = np.concatenate((self.past, self.transition), axis=0)
+		self.size = self.X.shape[0]
+		self.isDeleted = np.zeros(self.size, dtype=bool)
+		self.drawItem()
+
+	def getGtItems(self, file):
+		with open(file, 'rb') as f:
+			data = pickle.load(f, encoding='latin1')
+		self.X = data['gt']
+		self.size = self.X.shape[0]
+		self.isDeleted = np.zeros(self.size, dtype=bool)
+		self.drawItem()
+
+	def getEstItems(self, file):
+		with open(file, 'rb') as f:
+			data = pickle.load(f, encoding='latin1')
+		self.X = data['data']
 		self.size = self.X.shape[0]
 		self.isDeleted = np.zeros(self.size, dtype=bool)
 		self.drawItem()
@@ -217,7 +247,10 @@ class Viewer(QMainWindow):
 		root = np.zeros((1, 3))
 		data = np.concatenate((root, data), axis=0)
 		data = np.matmul(data, rr)
-		self.GLViewer.opts['distance'] = 2
+		self.GLViewer.opts['distance'] = 2.5
+		self.GLViewer.opts['elevation'] = 20
+		self.GLViewer.opts['azimuth'] = 50
+		self.GLViewer.setBackgroundColor('w')
 		for i in range(1, 22):
 			xx = (data[i][0], data[i][1], data[i][2])
 			yy = (data[parents[i]][0], data[parents[i]][1], data[parents[i]][2])
@@ -232,7 +265,7 @@ class Viewer(QMainWindow):
 							   smooth=True,
 							   color=(1, 0, 0.5, 1),
 							   shader="balloon",
-							   glOptions="additive")
+							   glOptions="opaque")
 
 			v = data[i] - data[parents[i]]
 			theta = np.arctan2(v[1], v[0])
@@ -255,15 +288,20 @@ class Viewer(QMainWindow):
 			# )
 			# self.GLViewer.addItem(self.lines)
 
-		gz = gl.GLGridItem()
-		gz.translate(0, 0, -1)
-		self.GLViewer.addItem(gz)
-		self.points = gl.GLScatterPlotItem(
-			pos = data,
-			color = pg.glColor((0, 255, 0)),
-			size=5
-			)
-		self.GLViewer.addItem(self.points)
+		# gz = gl.GLGridItem()
+		# gz.translate(0, 0, -1)
+		# self.GLViewer.addItem(gz)
+		# self.points = gl.GLScatterPlotItem(
+		# 	pos = data,
+		# 	color = pg.glColor((0, 255, 0)),
+		# 	size=5
+		# 	)
+		# self.GLViewer.addItem(self.points)
+		im = np.asarray(Image.open('../manuscript/checkerboard.png'))
+		tex = pg.makeRGBA(im)[0]
+		image = gl.GLImageItem(tex, glOptions='opaque')
+		image.translate(-im.shape[0]/2., -im.shape[1]/2., -1)
+		self.GLViewer.addItem(image)
 
 
 def main():

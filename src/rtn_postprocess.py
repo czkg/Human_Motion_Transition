@@ -39,8 +39,12 @@ if __name__ == '__main__':
 		if heatmap:
 			past = [heatmap2pose(p_data, 64, 21) for p_data in past]
 			transition = [heatmap2pose(t_data, 64, 21) for t_data in transition]
+			gt = [heatmap2pose(g_data, 64, 21) for g_data in gt]
+			est = [heatmap2pose(e_data, 64, 21) for e_data in est]
 			past = np.asarray(past)
 			transition = np.asarray(transition)
+			gt = np.asarray(gt)
+			est = np.asarray(est)
 
 		target_est = transition[-1]
 		target_gt = gt[-1]
@@ -51,7 +55,9 @@ if __name__ == '__main__':
 			w = 1. - (float(d-t) / float(d))
 			transition[t] = transition[t] + w*e
 
-		new_data = {'past': past, 'transition': transition}
+		past_est = est[past_len-1]
+
+		new_data = {'past': past, 'transition': transition, 'est': est, 'gt': gt}
 
 		with open(os.path.join(output_path, f), 'wb') as ff:
 			pickle.dump(new_data, ff, protocol=pickle.HIGHEST_PROTOCOL)

@@ -11,7 +11,6 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python3 ../src/test_rtn.py \
 	--num_joints 21 \
 	--x_dim 32 \
 	--hidden_dim 512 \
-	--z_dim 128 \
 	--epoch 100 \
 	--init_type xavier \
 	--init_gain 0.8 \

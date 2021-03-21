@@ -82,6 +82,7 @@ class BaseOptions():
         parser.add_argument('--transition_len', type=int, default=19, help='transition length of input sequence')
         parser.add_argument('--past_len', type=int, default=10, help='path length of input sequence')
         parser.add_argument('--target_len', type=int, default=1, help='target length of input sequence')
+        parser.add_argument('--fvae_pth', type=str, help='pretrained fvae pth for rtn')
 
         # special tasks
         self.initialized = True
